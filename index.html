@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LBP Delivery Tracker</title>
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJLY9E53YE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-PJLY9E53YE');
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0c12; color: #f1f3f9; font-family: monospace; min-height: 100vh; font-size: 13px; }
+textarea { background: #1a1e2e; border: 1px solid #252a3d; color: #f1f3f9; font-family: monospace; font-size: 12px; border-radius: 6px; padding: 10px; outline: none; width: 100%; resize: vertical; }
+textarea:focus { border-color: #3b82f6; }
+input[type=text] { background: #1a1e2e; border: 1px solid #252a3d; color: #f1f3f9; font-family: monospace; font-size: 12px; border-radius: 5px; padding: 7px 10px; outline: none; width: 100%; }
+input[type=text]:focus { border-color: #3b82f6; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const DARK = {
+  bg:"#0a0c12", panel:"#13161f", card:"#1a1e2e", border:"#252a3d",
+  blue:"#3b82f6", green:"#22c55e", red:"#ef4444", amber:"#f59e0b",
+  text:"#f1f3f9", muted:"#6b7280", cyan:"#06b6d4",
+};
+const LIGHT = {
+  bg:"#f5f6fa", panel:"#ffffff", card:"#eef0f6", border:"#d3d8e4",
+  blue:"#2563eb", green:"#16a34a", red:"#dc2626", amber:"#b45309",
+  text:"#11131a", muted:"#6b7280", cyan:"#0891b2",
+};
+const S = {...DARK};
+function applyTheme(light) { Object.assign(S, light ? LIGHT : DARK); }
+try { applyTheme(localStorage.getItem("dt_light")==="1"); } catch {}
+
+const PARCEL_TYPE_LIST = ["Small Packet","Packet","Standard","Postable","Heavy","Heavy/Large","Hanging Garment","Collection"];
+
+// Default rates (user can change in Settings)
+const DEFAULT_RATES = {
+  "Small Packet":0.61,"Packet":0.67,"Standard":0.89,
+  "Postable":0.53,"Heavy":1.00,"Heavy/Large":1.00,
+  "Hanging Garment":0.89,"Collection":0.00,
+};
+
+function loadRates() {
+  try {
+    const r = localStorage.getItem("delivery_rates");
+    if (r) {
+      const parsed = JSON.parse(r);
+      // migrate old format {default, special} -> {rounds}
+      if (parsed.rounds) return parsed;
+      const rounds = {...(parsed.special||{})};
+      return { rounds };
+    }
+  } catch {}
+  return { rounds: {} };
+}
+function saveRates(r) {
+  try { localStorage.setItem("delivery_rates", JSON.stringify(r)); } catch {}
+}
+
+function calcRound(roundNum, parcels, rateConfig) {
+  const rates = (rateConfig?.rounds?.[roundNum]) || {};
+  let total = 0;
+  const lines = [];
+  for (const [type, count] of Object.entries(parcels)) {
+    if (!count) continue;
+    const rate = rates[type] ?? 0;
+    const sub = Math.round(count * rate * 100) / 100;
+    lines.push({ type, count, rate, sub });
+    total += sub;
+  }
+  return { total: Math.round(total * 100) / 100, lines };
+}
+
+function loadData() {
+  try { const r = localStorage.getItem("delivery_tracker"); return r ? JSON.parse(r) : { periods: [] }; }
+  catch { return { periods: [] }; }
+}
+function saveData(d) {
+  try { localStorage.setItem("delivery_tracker", JSON.stringify(d)); } catch {}
+}
+
+function parseText(text) {
+  const PARCEL_TYPES = ["Small Packet","Heavy/Large","Hanging Garment","Standard","Postable","Packet","Heavy","Collection"];
+  const result = { date:null, distance_miles:null, duration_hours:null, duration_minutes:null, manifests:[], day_summary:null };
+  const dateM = text.match(/Manifest Date\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  if (dateM) result.date = dateM[1];
+  const distM = text.match(/estimated distance of ([\d.]+) mile/i);
+  if (distM) result.distance_miles = parseFloat(distM[1]);
+  const durM = text.match(/(\d+) hour\(s\) (\d+) minute/i);
+  if (durM) { result.duration_hours = parseInt(durM[1]); result.duration_minutes = parseInt(durM[2]); }
+  const blocks = text.split(/(?=Round Number)/i).filter(b => /Round Number/i.test(b));
+  blocks.forEach(block => {
+    const rnM = block.match(/Round Number\s*:?\s*(\d+)/i);
+    if (!rnM) return;
+    const roundNum = parseInt(rnM[1]);
+    const parcels = {};
+    PARCEL_TYPES.forEach(type => {
+      const esc = type.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp("(?:^|\\n)[ \\t]*" + esc + "[ \\t]*:?[ \\t]*(\\d+)", "im");
+      const m = block.match(re);
+      parcels[type] = m ? parseInt(m[1]) : 0;
+    });
+    result.manifests.push({ round_number: roundNum, parcels });
+  });
+  const succM = text.match(/Successful deliveries\s*:?\s*(\d+)/i);
+  const cfM = text.match(/Carry forward\s*:?\s*(\d+)/i);
+  const failM = text.match(/Cannot deliver\s*:?\s*(\d+)/i);
+  if (succM || cfM || failM) {
+    result.day_summary = {
+      successful: succM ? parseInt(succM[1]) : 0,
+      carry_forward: cfM ? parseInt(cfM[1]) : 0,
+      cannot_deliver: failM ? parseInt(failM[1]) : 0,
+    };
+  }
+  if (result.manifests.length === 0) throw new Error("No Round Numbers found.");
+  return result;
+}
+
+async function scanImages(files) {
+  const toBase64 = file => new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",")[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+  const images = await Promise.all(Array.from(files).map(async f => ({
+    type:"image", source:{type:"base64", media_type:f.type||"image/jpeg", data: await toBase64(f)}
+  })));
+  const prompt = `Extract delivery data from these courier app screenshots. Return ONLY valid JSON, no markdown.
+Schema:
+{"date":"DD/MM/YYYY","distance_miles":0,"duration_hours":0,"duration_minutes":0,"manifests":[{"round_number":123456,"parcels":{"Small Packet":0,"Packet":0,"Standard":0,"Postable":0,"Heavy":0,"Heavy/Large":0,"Hanging Garment":0,"Collection":0}}],"day_summary":{"successful":0,"carry_forward":0,"cannot_deliver":0}}
+Rules: extract all Round Numbers and parcel counts; distance/duration from "estimated distance" line; day_summary from "Successful deliveries" line; date from "Manifest Date" field; set missing fields to 0; day_summary is null if no Day Summary screen present.`;
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"Content-Type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:[...images,{type:"text",text:prompt}]}]})
+  });
+  if(!resp.ok) throw new Error("API "+resp.status+": "+(await resp.text()).slice(0,200));
+  const data = await resp.json();
+  const raw = data.content?.find(b=>b.type==="text")?.text||"";
+  return JSON.parse(raw.replace(/```json|```/g,"").trim());
+}
+
+const fmt = v => "£" + Number(v||0).toFixed(2);
+const pct = (a,b) => b > 0 ? ((a/b)*100).toFixed(1)+"%" : "—";
+const dateKey = (s) => { const m=(s||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? parseInt(m[3])*10000+parseInt(m[2])*100+parseInt(m[1]) : 0; };
+// Live recompute a day's total from stored parcels + current rates
+function dayAmount(d, rateConfig) {
+  let t = 0;
+  (d.rounds||[]).forEach(r => { t += calcRound(r.round, r.parcels, rateConfig).total; });
+  return Math.round(t*100)/100;
+}
+
+function Btn({ children, onClick, color, style }) {
+  const bg = color==="red"?S.red:color==="green"?S.green:color==="cyan"?S.cyan:S.blue;
+  const tc = (color==="cyan"||color==="green")?"#000":"#fff";
+  return <div onClick={onClick} style={{ background:bg, color:tc, padding:"11px 0", borderRadius:6, textAlign:"center", cursor:"pointer", fontWeight:600, fontSize:13, userSelect:"none", ...style }}>{children}</div>;
+}
+
+function Stat({ label, value, color }) {
+  return (
+    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:8, padding:"10px 12px", flex:1, minWidth:80 }}>
+      <div style={{ fontSize:9, color:S.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{label}</div>
+      <div style={{ fontSize:18, fontWeight:700, color:color||S.text }}>{value}</div>
+    </div>
+  );
+}
+
+function PeriodNameEditor({ name, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(name);
+  if (!editing) return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
+      <span style={{ fontWeight:700, fontSize:16 }}>{name}</span>
+      <div onClick={() => { setVal(name); setEditing(true); }}
+        style={{ background:S.card, border:"1px solid "+S.border, color:S.muted, padding:"3px 10px", borderRadius:4, cursor:"pointer", fontSize:11 }}>✏ edit</div>
+    </div>
+  );
+  return (
+    <div style={{ display:"flex", gap:6, flex:1 }}>
+      <input type="text" value={val} onChange={e => setVal(e.target.value)}
+        style={{ flex:1, background:S.card, border:"1px solid "+S.blue, color:S.text, fontFamily:"monospace", fontSize:13, borderRadius:5, padding:"5px 10px", outline:"none" }}
+        onKeyDown={e => { if(e.key==="Enter"&&val.trim()){onSave(val.trim());setEditing(false);} if(e.key==="Escape")setEditing(false); }}
+        autoFocus />
+      <div onClick={() => { if(val.trim()){onSave(val.trim());setEditing(false);} }}
+        style={{ background:S.green, color:"#000", padding:"5px 12px", borderRadius:4, cursor:"pointer", fontSize:12, fontWeight:700 }}>✓</div>
+      <div onClick={() => setEditing(false)}
+        style={{ background:S.card, color:S.muted, padding:"5px 10px", borderRadius:4, cursor:"pointer", fontSize:12 }}>✕</div>
+    </div>
+  );
+}
+
+function App() {
+  const [data, setData] = useState(() => loadData());
+  const [view, setView] = useState("home");
+  const [activePi, setActivePi] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [pasteText, setPasteText] = useState("");
+  const [parseError, setParseError] = useState(null);
+  const [parsed, setParsed] = useState(null);
+  const [periodName, setPeriodName] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState(null);
+  const [rateConfig, setRateConfig] = useState(() => loadRates());
+  const [formKey, setFormKey] = useState(0);
+  const [light, setLight] = useState(() => { try { return localStorage.getItem("dt_light")==="1"; } catch { return false; } });
+  const [manualDate, setManualDate] = useState(""); // DD/MM only
+  const [manualList, setManualList] = useState([]); // [{round:"", counts:{type:val}}]
+  const [manualDay, setManualDay] = useState({successful:"",carry_forward:"",cannot_deliver:""});
+  const [manualDist, setManualDist] = useState({miles:"",hours:""});
+  const [fontScale, setFontScale] = useState(() => { try { return parseFloat(localStorage.getItem("dt_font"))||1; } catch { return 1; } });
+
+  // keep palette + body bg in sync with theme
+  applyTheme(light);
+  useEffect(() => {
+    try { localStorage.setItem("dt_light", light?"1":"0"); } catch {}
+    document.body.style.background = S.bg;
+    document.body.style.color = S.text;
+  }, [light]);
+  useEffect(() => { try { localStorage.setItem("dt_font", String(fontScale)); } catch {} }, [fontScale]);
+
+  const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),2500); };
+
+  const persist = useCallback(nd => {
+    saveData(nd);
+    setData(nd);
+  }, []);
+
+  function exportData() {
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download="delivery-backup.json"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importData(e) {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if(!imported.periods) throw new Error();
+        persist(imported);
+        showToast("Imported "+imported.periods.length+" periods");
+      } catch { showToast("Invalid file", false); }
+    };
+    reader.readAsText(file);
+  }
+
+  const activePeriod = data.periods[activePi];
+
+  function pStats(p) {
+    let total=0,success=0,failed=0,cf=0,amount=0,miles=0,mins=0;
+    const types={};
+    (p.days||[]).forEach(d => {
+      total+=d.manifested||0; success+=d.successful||0; failed+=d.cannot_deliver||0;
+      cf+=d.carry_forward||0; amount+=dayAmount(d,rateConfig); miles+=d.distance_miles||0;
+      mins+=(d.duration_hours||0)*60+(d.duration_minutes||0);
+      (d.rounds||[]).forEach(r => {
+        Object.entries(r.parcels||{}).forEach(([t,c]) => { if(c>0) types[t]=(types[t]||0)+c; });
+      });
+    });
+    return {total,success,failed,cf,amount,miles:Math.round(miles*10)/10,mins,types};
+  }
+
+  function doParse() {
+    if(!pasteText.trim()) return;
+    setParseError(null); setParsed(null);
+    try { const r=parseText(pasteText); setParsed(r); setView("confirm"); }
+    catch(e) { setParseError("Parse failed: "+e.message); }
+  }
+
+  async function handleScan(files) {
+    if(!files||!files.length) return;
+    setScanning(true); setScanError(null); setParsed(null);
+    try {
+      const result = await scanImages(files);
+      setParsed(result);
+      setView("confirm");
+    } catch(e) { setScanError("Scan failed: "+e.message); }
+    setScanning(false);
+  }
+
+  function saveDay() {
+    if(!parsed?.date){showToast("No date found",false);return;}
+    let manifested=0, amount=0;
+    const rounds=[];
+    (parsed.manifests||[]).forEach(m => {
+      const {total,lines}=calcRound(m.round_number,m.parcels,rateConfig);
+      const cnt=Object.values(m.parcels).reduce((a,v)=>a+(v||0),0);
+      manifested+=cnt; amount+=total;
+      rounds.push({round:m.round_number,parcels:m.parcels,subtotal:total,lines});
+    });
+    const dayObj = {
+      date:parsed.date, manifested,
+      successful:parsed.day_summary?.successful||0,
+      carry_forward:parsed.day_summary?.carry_forward||0,
+      cannot_deliver:parsed.day_summary?.cannot_deliver||0,
+      distance_miles:parsed.distance_miles||0,
+      duration_hours:parsed.duration_hours||0,
+      duration_minutes:parsed.duration_minutes||0,
+      amount:Math.round(amount*100)/100, rounds, savedAt:Date.now(),
+    };
+    const periods = data.periods.map((p,pi) => {
+      if(pi!==activePi) return p;
+      const days=[...p.days.filter(d=>d.date!==dayObj.date),dayObj].sort((a,b)=>dateKey(a.date)-dateKey(b.date));
+      return {...p,days};
+    });
+    persist({...data,periods});
+    showToast("Saved!");
+    setPasteText(""); setParsed(null);
+    setView("period");
+  }
+
+  function avgMilesHours() {
+    const p = data.periods[activePi];
+    let miles=0, mins=0, n=0;
+    (p?.days||[]).forEach(d => {
+      if((d.distance_miles||0)>0){ miles+=d.distance_miles; mins+=(d.duration_hours||0)*60+(d.duration_minutes||0); n++; }
+    });
+    if(n===0) return null;
+    return { miles: Math.round((miles/n)*100)/100, hours: Math.round((mins/n)/60*100)/100 };
+  }
+
+  function initManual() {
+    const blank={}; PARCEL_TYPE_LIST.forEach(t=>blank[t]="");
+    setManualDate("");
+    setManualList([{round:"", counts:{...blank}}]);
+    setManualDay({successful:"",carry_forward:"",cannot_deliver:""});
+    setManualDist({miles:"",hours:""});
+  }
+
+  function saveManual() {
+    // accept DDMM (digits only) or DD/MM
+    let raw = manualDate.trim().replace(/\D/g,""); // strip non-digits -> e.g. 0506
+    let dd, mm;
+    if(raw.length===3){ dd=raw.slice(0,1); mm=raw.slice(1); }      // 506 -> 5/06
+    else if(raw.length===4){ dd=raw.slice(0,2); mm=raw.slice(2); } // 0506 -> 05/06
+    else { showToast("Enter date as DDMM, e.g. 0506", false); return; }
+    const di=parseInt(dd), mi=parseInt(mm);
+    if(di<1||di>31||mi<1||mi>12){ showToast("Invalid date", false); return; }
+    const yr = new Date().getFullYear();
+    const fullDate = String(di).padStart(2,"0")+"/"+String(mi).padStart(2,"0")+"/"+yr;
+
+    const valid = manualList.filter(r=>/^\d+$/.test((r.round||"").trim()));
+    if(valid.length===0){ showToast("Enter at least one Round number", false); return; }
+
+    let manifested=0, amount=0;
+    const rounds=[];
+    valid.forEach(r => {
+      const rn=parseInt(r.round.trim());
+      const parcels={};
+      PARCEL_TYPE_LIST.forEach(t => { parcels[t]=parseInt(r.counts[t])||0; });
+      const {total,lines}=calcRound(rn,parcels,rateConfig);
+      const cnt=Object.values(parcels).reduce((a,v)=>a+(v||0),0);
+      manifested+=cnt; amount+=total;
+      rounds.push({round:rn,parcels,subtotal:total,lines});
+    });
+
+    // miles/hours: use entered, else average, else 0
+    const avg = avgMilesHours();
+    const miles = manualDist.miles!=="" ? parseFloat(manualDist.miles) : (avg?avg.miles:0);
+    const hoursDec = manualDist.hours!=="" ? parseFloat(manualDist.hours) : (avg?avg.hours:0);
+    const dh = Math.floor(hoursDec);
+    const dmins = Math.round((hoursDec-dh)*60);
+
+    const dayObj = {
+      date:fullDate, manifested,
+      successful:parseInt(manualDay.successful)||0,
+      carry_forward:parseInt(manualDay.carry_forward)||0,
+      cannot_deliver:parseInt(manualDay.cannot_deliver)||0,
+      distance_miles:Math.round((miles||0)*100)/100,
+      duration_hours:dh||0, duration_minutes:dmins||0,
+      amount:Math.round(amount*100)/100, rounds, savedAt:Date.now(),
+    };
+    const periods = data.periods.map((p,pi) => {
+      if(pi!==activePi) return p;
+      const days=[...p.days.filter(d=>d.date!==dayObj.date),dayObj].sort((a,b)=>dateKey(a.date)-dateKey(b.date));
+      return {...p,days};
+    });
+    persist({...data,periods});
+    showToast("Saved!");
+    setView("period");
+  }
+
+  function deleteDay(di) {
+    const periods=data.periods.map((p,pi)=>pi!==activePi?p:{...p,days:p.days.filter((_,i)=>i!==di)});
+    persist({...data,periods}); showToast("Deleted");
+  }
+
+  function deletePeriod() {
+    persist({...data,periods:data.periods.filter((_,i)=>i!==activePi)});
+    showToast("Deleted"); setView("home");
+  }
+
+  const wrap = children => (
+    <div style={{maxWidth:680,margin:"0 auto",padding:"22px 14px",background:S.bg,color:S.text,minHeight:"100vh",zoom:fontScale}}>
+      {toast && <div style={{position:"fixed",top:14,right:14,background:toast.ok?S.green:S.red,color:"#fff",padding:"9px 18px",borderRadius:7,fontWeight:700,zIndex:9999,fontSize:12}}>{toast.msg}</div>}
+      {children}
+    </div>
+  );
+
+  const topBar = (title, back) => (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+      {back && <div onClick={back} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer"}}>← back</div>}
+      <span style={{fontWeight:700,fontSize:16}}>{title}</span>
+    </div>
+  );
+
+  // HELP VIEW
+  if (view==="help") {
+    const card = {background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:12};
+    const h = {fontWeight:700,color:S.cyan,fontSize:14,marginBottom:8};
+    const p = {fontSize:12.5,color:S.text,lineHeight:1.6,marginBottom:6};
+    const mut = {fontSize:11.5,color:S.muted,lineHeight:1.6};
+    const codebox = {background:S.bg,border:"1px solid "+S.border,borderRadius:6,padding:"10px",fontSize:11,color:S.muted,lineHeight:1.5,marginTop:6,whiteSpace:"pre-wrap"};
+    return wrap(<>
+      {topBar("❓ Help & Guide", ()=>setView("home"))}
+
+      <a href="mailto:lbpdeliverytracker@outlook.com?subject=Delivery%20Tracker%20-%20Help" style={{textDecoration:"none"}}>
+        <div style={{background:S.cyan+"18",border:"1px solid "+S.cyan+"55",borderRadius:8,padding:"12px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>📧</span>
+          <div>
+            <div style={{fontWeight:700,color:S.cyan,fontSize:13}}>Need help? Contact me</div>
+            <div style={{fontSize:11,color:S.muted}}>Tap to email lbpdeliverytracker@outlook.com</div>
+          </div>
+        </div>
+      </a>
+
+      <div style={card}>
+        <div style={h}>1 · First-time setup</div>
+        <div style={p}>Go to <b>Settings — Rounds &amp; Rates</b> and tap <b>+ Add Round</b>. Enter your Round Number, then tap <b>⚡ Auto-fill from Standard rate</b> and type your Standard Parcel rate — the other parcel types are worked out automatically from Evri's pay bands. Edit any if yours differ. Repeat for each round you run.</div>
+      </div>
+
+      <div style={card}>
+        <div style={h}>2 · Create a Period</div>
+        <div style={p}>On the home screen tap <b>+ New Period</b> and give it a name (e.g. your pay period dates). A period holds all the days inside it and shows your totals.</div>
+      </div>
+
+      <div style={card}>
+        <div style={h}>3 · Add a day's data</div>
+        <div style={p}>You'll take 3 screenshots during a normal working day. Just copy the text from each and paste them together into one box:</div>
+        <div style={mut}><b style={{color:S.text}}>Before you start (Manifest Summary):</b> copy each round's summary — Round Number, date and parcel types.</div>
+        <img alt="Manifest Summary example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gdG9wIGJhciAtLT4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjQ0IiBmaWxsPSIjMWE4Y2ZmIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIyOCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIxNSIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk1BTklGRVNUIFNVTU1BUlk8L3RleHQ+CiAgPCEtLSBjYXJkIC0tPgogIDxyZWN0IHg9IjEyIiB5PSI1NiIgd2lkdGg9IjI5NiIgaGVpZ2h0PSIzMDAiIHJ4PSIxMCIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjZTJlNmVlIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI4NiIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxNiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPjAyODcwMDAwMDAwMDA8L3RleHQ+CgogIDwhLS0gaGlnaGxpZ2h0IGJveCBhcm91bmQgY29weSBhcmVhIC0tPgogIDxyZWN0IHg9IjIwIiB5PSIxMDAiIHdpZHRoPSIyODAiIGhlaWdodD0iMjEwIiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KCiAgPHRleHQgeD0iMTYwIiB5PSIxMjAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Sb3VuZCBOdW1iZXI6IDEyMzQ1NjwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjEzOCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk1hbmlmZXN0IERhdGU6IDA0LzA2LzIwMjY8L3RleHQ+CgogIDx0ZXh0IHg9IjMyIiB5PSIxNzAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIj5Ub3RhbCBEZWxpdmVyaWVzOiA2ODwvdGV4dD4KCiAgPHRleHQgeD0iMTYwIiB5PSIxOTYiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QYXJjZWwgVHlwZXM8L3RleHQ+CiAgPHRleHQgeD0iMzIiIHk9IjIyMCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiPlNtYWxsIFBhY2tldDogNDA8L3RleHQ+CiAgPHRleHQgeD0iMzIiIHk9IjI0MCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiPlBhY2tldDogOTwvdGV4dD4KICA8dGV4dCB4PSIzMiIgeT0iMjYwIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iYm9sZCI+UG9zdGFibGU6IDEzPC90ZXh0PgogIDx0ZXh0IHg9IjMyIiB5PSIyODAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIj5TdGFuZGFyZDogNDwvdGV4dD4KICA8dGV4dCB4PSIzMiIgeT0iMzAwIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iYm9sZCI+SGVhdnk6IDI8L3RleHQ+CgogIDwhLS0gYnV0dG9ucyAtLT4KICA8cmVjdCB4PSIyMCIgeT0iMzgwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjQwIiByeD0iMjAiIGZpbGw9IiNmZmYiIHN0cm9rZT0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iNDA1IiBmaWxsPSIjMWE4Y2ZmIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5SZWplY3Q8L3RleHQ+CiAgPHJlY3QgeD0iMjAiIHk9IjQ4MCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSI0MCIgcng9IjIwIiBmaWxsPSIjMGExYTUyIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI1MDUiIGZpbGw9IiMzZmQwZmYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkNvbnRpbnVlPC90ZXh0PgoKICA8IS0tIGxhYmVsIC0tPgogIDxyZWN0IHg9IjIwIiB5PSIzMTgiIHdpZHRoPSIyODAiIGhlaWdodD0iMjIiIHJ4PSI0IiBmaWxsPSIjZjViNTBhIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIzMzMiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7irIYgQ09QWSBUSElTIOKAlCBvbmUgYm94IHBlciByb3VuZDwvdGV4dD4KPC9zdmc+Cg==" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
+        <div style={{...mut,marginTop:10}}><b style={{color:S.text}}>The route popup:</b> copy the distance &amp; duration line.</div>
+        <img alt="Route popup example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gZGltbWVkIGJnIC0tPgogIDxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNDQiIGZpbGw9IiM1YTcwOGYiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4IiBmaWxsPSIjZGZlNmVmIiBmb250LXNpemU9IjE1IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TUFOSUZFU1QgU1VNTUFSWTwvdGV4dD4KICA8cmVjdCB4PSIxMiIgeT0iNTYiIHdpZHRoPSIyOTYiIGhlaWdodD0iMjIwIiByeD0iMTAiIGZpbGw9IiNlOWVkZjMiLz4KICA8dGV4dCB4PSIxNjAiIHk9Ijg2IiBmaWxsPSIjN2E4YWEwIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+MDI4NzAwMDAwMDAwMDwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjExMiIgZmlsbD0iIzdhOGFhMCIgZm9udC1zaXplPSIxMSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Um91bmQgTnVtYmVyOiAxMjM0NTY8L3RleHQ+CgogIDwhLS0gcG9wdXAgLS0+CiAgPHJlY3QgeD0iMjQiIHk9IjE1MCIgd2lkdGg9IjI3MiIgaGVpZ2h0PSIyNzAiIHJ4PSIxMCIgZmlsbD0iI2Y0ZjVmNyIgc3Ryb2tlPSIjY2ZkNWUwIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIxODQiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5NYW5pZmVzdCBDb25maXJtYXRpb248L3RleHQ+CiAgPGxpbmUgeDE9IjI0IiB5MT0iMjAwIiB4Mj0iMjk2IiB5Mj0iMjAwIiBzdHJva2U9IiNkZmUzZWEiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjIyOCIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+QXJlIHlvdSBoYXBweSB0byBwcm9jZWVkIHdpdGggMzwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjI0NiIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+ZG93bmxvYWRlZCBtYW5pZmVzdChzKT88L3RleHQ+CgogIDwhLS0gaGlnaGxpZ2h0IHRoZSBkaXN0YW5jZS9kdXJhdGlvbiAtLT4KICA8cmVjdCB4PSIzNCIgeT0iMjYyIiB3aWR0aD0iMjUyIiBoZWlnaHQ9Ijc0IiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4NCIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMS41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Zb3VyIGRyYWZ0IHJvdXRlIGhhcyBhbiBlc3RpbWF0ZWQ8L3RleHQ+CiAgPHRleHQgeD0iMTYwIiB5PSIzMDIiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTEuNSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+ZGlzdGFuY2Ugb2YgMjcuNzUgbWlsZShzKSBhbmQgZHVyYXRpb248L3RleHQ+CiAgPHRleHQgeD0iMTYwIiB5PSIzMjAiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTEuNSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+b2YgOSBob3VyKHMpIDEzIG1pbnV0ZShzKTwvdGV4dD4KCiAgPGxpbmUgeDE9IjE2MCIgeTE9IjM2MCIgeDI9IjE2MCIgeTI9IjQxMCIgc3Ryb2tlPSIjZGZlM2VhIi8+CiAgPGxpbmUgeDE9IjM0IiB5MT0iMzYwIiB4Mj0iMjg2IiB5Mj0iMzYwIiBzdHJva2U9IiNkZmUzZWEiLz4KICA8dGV4dCB4PSI5NyIgeT0iMzkyIiBmaWxsPSIjMWEyNzQwIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObzwvdGV4dD4KICA8dGV4dCB4PSIyMjMiIHk9IjM5MiIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+WWVzPC90ZXh0PgoKICA8IS0tIGxhYmVsIC0tPgogIDxyZWN0IHg9IjM0IiB5PSI0MzAiIHdpZHRoPSIyNTIiIGhlaWdodD0iMjIiIHJ4PSI0IiBmaWxsPSIjZjViNTBhIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI0NDUiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7irIYgQ09QWSBUSEUgRElTVEFOQ0UgJmFtcDsgRFVSQVRJT04gTElORTwvdGV4dD4KPC9zdmc+Cg==" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
+        <div style={{...mut,marginTop:10}}><b style={{color:S.text}}>End of day (Day Summary):</b> copy the delivery summary.</div>
+        <img alt="Day Summary example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNDQiIGZpbGw9IiMxYThjZmYiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4IiBmaWxsPSIjZmZmIiBmb250LXNpemU9IjE1IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+REFZIFNVTU1BUlk8L3RleHQ+CgogIDwhLS0gbWVudSByb3cgLS0+CiAgPHJlY3QgeD0iMTIiIHk9IjU0IiB3aWR0aD0iMTQyIiBoZWlnaHQ9IjMwIiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjgzIiB5PSI3NCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TWVudTwvdGV4dD4KICA8cmVjdCB4PSIxNjYiIHk9IjU0IiB3aWR0aD0iMTQyIiBoZWlnaHQ9IjMwIiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjIzNyIgeT0iNzQiIGZpbGw9IiNmZmYiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNpZ25vdXQ8L3RleHQ+CiAgPHJlY3QgeD0iMTIiIHk9IjkwIiB3aWR0aD0iMjk2IiBoZWlnaHQ9IjI4IiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iMTA5IiBmaWxsPSIjZmZmIiBmb250LXNpemU9IjEyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5IZWxwPC90ZXh0PgoKICA8IS0tIHllbGxvdyBub3RlIC0tPgogIDxyZWN0IHg9IjEyIiB5PSIxMjYiIHdpZHRoPSIyOTYiIGhlaWdodD0iNDQiIHJ4PSI2IiBmaWxsPSIjZmRmNmM4IiBzdHJva2U9IiNlN2RjYTAiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjE0NiIgZmlsbD0iIzMzMyIgZm9udC1zaXplPSIxMC41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QbGVhc2UgZW5zdXJlIGFsbCBjYXJyaWVkIGZvcndhcmQgcGFyY2VsczwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjE2MSIgZmlsbD0iIzMzMyIgZm9udC1zaXplPSIxMC41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5hcmUgc3RvcmVkIGluIGEgc2VjdXJlIHBsYWNlLjwvdGV4dD4KCiAgPCEtLSBzdGF0cyBjYXJkIHdpdGggaGlnaGxpZ2h0IC0tPgogIDxyZWN0IHg9IjEyIiB5PSIxODIiIHdpZHRoPSIyOTYiIGhlaWdodD0iMTgwIiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8dGV4dCB4PSIyOCIgeT0iMjEyIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEzIiBmb250LXdlaWdodD0iYm9sZCI+U3VjY2Vzc2Z1bCBkZWxpdmVyaWVzOiAyNDM8L3RleHQ+CiAgPHRleHQgeD0iMjgiIHk9IjIzNCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMyIgZm9udC13ZWlnaHQ9ImJvbGQiPkNhcnJ5IGZvcndhcmQ6IDk8L3RleHQ+CiAgPHRleHQgeD0iMjgiIHk9IjI1NiIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMyIgZm9udC13ZWlnaHQ9ImJvbGQiPkNhbm5vdCBkZWxpdmVyOiAwPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIyOTIiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5TdWNjZXNzZnVsIGNvbGxlY3Rpb25zOiAxPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIzMTQiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5DYXJyeSBmb3J3YXJkOiAwPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIzMzYiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5DYW5ub3QgY29sbGVjdDogMjwvdGV4dD4KCiAgPCEtLSBsYWJlbCAtLT4KICA8cmVjdCB4PSIxMiIgeT0iMzcyIiB3aWR0aD0iMjk2IiBoZWlnaHQ9IjIyIiByeD0iNCIgZmlsbD0iI2Y1YjUwYSIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iMzg3IiBmaWxsPSIjMTExIiBmb250LXNpemU9IjExIiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+4qyGIENPUFkgVEhJUyBBVCBFTkQgT0YgREFZPC90ZXh0Pgo8L3N2Zz4K" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
+        <div style={{...p,marginTop:10}}>Open your period, tap <b>📋 Paste Manifest Text</b>, paste everything in, tap <b>PARSE →</b>, check the figures, then <b>✓ SAVE</b>. If you run several rounds, paste all of their Manifest Summaries together in the same box.</div>
+      </div>
+
+      <div style={card}>
+        <div style={h}>4 · No manifest? Use Manual Entry</div>
+        <div style={p}>Sometimes Evri's system has no manifest in the morning, so you get no Manifest Summary screenshots. In that case, wait until the figures appear in the official Evri app under <b>My Pay → Estimated pay → by round</b>, then enter them by hand.</div>
+        <div style={p}>Open your period and tap <b>✏️ Manual Entry</b>. Type the <b>date</b> as 4 digits (e.g. 0506 for 5 June — no slash needed). For each round, type the <b>Round number</b> and the quantity of each parcel type. Tap <b>+ Round</b> if you ran more than one.</div>
+        <div style={p}>Fill in the <b>Day Summary</b> from your end-of-day screenshot. For <b>Miles / Hours</b>, you won't know these without a manifest — just leave them blank and the app fills in your usual average. Tap <b>✓ SAVE</b> and your pay is worked out automatically.</div>
+      </div>
+
+      <div style={card}>
+        <div style={h}>5 · Your earnings update automatically</div>
+        <div style={p}>Pay is calculated live from the rates in Settings. If your rates ever change, just update them in Settings — every saved day recalculates instantly. No need to re-enter anything.</div>
+      </div>
+
+      <div style={card}>
+        <div style={h}>6 · Back up your data (important)</div>
+        <div style={p}>Your data is stored only on this phone. Tap <b>⬇ Backup</b> on the home screen now and then to save a file. If you clear your browser, change phone, or anything goes wrong, tap <b>⬆ Restore</b> to load it back.</div>
+      </div>
+
+      <div style={card}>
+        <div style={h}>7 · Display options</div>
+        <div style={p}>Use <b>Text − / +</b> to make everything bigger or smaller, and the <b>Light / Dark</b> toggle to switch theme. Your choice is remembered.</div>
+      </div>
+    </>);
+  }
+
+  // SETTINGS VIEW
+  if (view==="settings") {
+    const rounds = rateConfig.rounds || {};
+    const updateRate = (round, type, val) => {
+      const nc = {...rateConfig, rounds:{...rounds, [round]:{...(rounds[round]||{}), [type]: parseFloat(val)||0}}};
+      setRateConfig(nc); saveRates(nc);
+    };
+    const autoFill = (round) => {
+      const std = prompt("Enter your Standard Parcel rate (£), e.g. 1.00\nOther types are auto-calculated from Evri's % bands and minimums. Edit any after.");
+      const base = parseFloat(std);
+      if (!base || base<=0) { if(std!==null) showToast("Enter a valid number", false); return; }
+      const r2 = v => Math.round(v*100)/100;
+      const filled = {
+        "Small Packet":   Math.max(r2(base*0.69), 0.35),
+        "Packet":         Math.max(r2(base*0.75), 0.40),
+        "Standard":       r2(base),
+        "Postable":       Math.max(r2(base*0.60), 0.30),
+        "Heavy":          Math.max(r2(base), 1.00),
+        "Heavy/Large":    Math.max(r2(base), 1.00),
+        "Hanging Garment":r2(base),
+        "Collection":     r2(base*0.80),
+      };
+      const nc = {...rateConfig, rounds:{...rounds, [round]:filled}};
+      setRateConfig(nc); saveRates(nc); setFormKey(k=>k+1); showToast("Auto-filled — edit any if needed");
+    };
+    const addRound = () => {
+      const rn = prompt("Enter your Round Number (e.g. 123456):");
+      if (!rn || !/^\d+$/.test(rn.trim())) { if(rn) showToast("Numbers only", false); return; }
+      const key = rn.trim();
+      if (rounds[key]) { showToast("Round already exists", false); return; }
+      const blank = {}; PARCEL_TYPE_LIST.forEach(t=>blank[t]=0);
+      const nc = {...rateConfig, rounds:{...rounds, [key]:blank}};
+      setRateConfig(nc); saveRates(nc); showToast("Added round "+key);
+    };
+    const removeRound = (round) => {
+      const r = {...rounds}; delete r[round];
+      const nc = {...rateConfig, rounds:r};
+      setRateConfig(nc); saveRates(nc);
+    };
+    const roundKeys = Object.keys(rounds);
+    return wrap(<>
+      {topBar("⚙ Settings", ()=>setView("home"))}
+      <div style={{fontSize:11,color:S.muted,marginBottom:14,lineHeight:1.5}}>Add each of your Round Numbers. Tip: tap "Auto-fill" and just enter your Standard Parcel rate — the rest are worked out from Evri's pay bands. Edit any if yours differ.</div>
+
+      {roundKeys.length===0 && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"12px 14px",marginBottom:14,fontSize:12,color:S.amber}}>No rounds yet. Tap "Add Round" below to start.</div>}
+
+      {roundKeys.map(round=>(
+        <div key={round} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontWeight:700,color:S.cyan,fontSize:15}}>Round {round}</span>
+            <div onClick={()=>{if(confirm("Remove Round "+round+"?"))removeRound(round);}}
+              style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>remove</div>
+          </div>
+          <div onClick={()=>autoFill(round)} style={{background:S.green+"22",border:"1px solid "+S.green+"55",color:S.green,padding:"7px 0",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"center",marginBottom:12}}>⚡ Auto-fill from Standard rate</div>
+          {PARCEL_TYPE_LIST.map(type=>(
+            <div key={type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
+              <input key={round+"_"+type+"_"+formKey} type="number" step="0.01" defaultValue={rounds[round][type]??0}
+                onChange={e=>updateRate(round,type,e.target.value)}
+                style={{width:90,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none",textAlign:"right"}} />
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <div onClick={addRound} style={{background:S.panel,border:"1px dashed "+S.cyan+"66",color:S.cyan,padding:"12px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center",marginBottom:8}}>+ Add Round</div>
+      <div style={{fontSize:11,color:S.muted,textAlign:"center"}}>Changes save instantly and apply to new entries</div>
+    </>);
+  }
+
+  // HOME
+  if (view==="home") return wrap(<>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+      <img alt="LBP" src="data:image/jpeg;base64,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" style={{width:30,height:30,borderRadius:6}} />
+      <span style={{fontWeight:800,fontSize:18,letterSpacing:0.3}}>LBP Delivery Tracker</span>
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
+      <span style={{fontSize:11,color:S.muted}}>Text</span>
+      <div onClick={()=>setFontScale(f=>Math.max(0.8,Math.round((f-0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:36,height:32,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>−</div>
+      <div onClick={()=>setFontScale(f=>Math.min(1.6,Math.round((f+0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:36,height:32,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>+</div>
+      <div onClick={()=>setLight(l=>!l)} style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"7px 0",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"center"}}>{light?"🌙 Dark mode":"☀ Light mode"}</div>
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:14}}>
+      <Btn onClick={()=>setView("add_period")} style={{flex:1}}>+ NEW PERIOD</Btn>
+      <div onClick={exportData} style={{background:S.green,color:"#000",padding:"11px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap"}}>⬇ Backup</div>
+      <label style={{background:S.cyan,color:"#000",padding:"11px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap"}}>
+        ⬆ Restore<input type="file" accept=".json" style={{display:"none"}} onChange={importData} />
+      </label>
+    </div>
+    {(() => {
+      const noRounds = Object.keys(rateConfig.rounds||{}).length===0;
+      return (<>
+        {noRounds && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"10px 14px",marginBottom:10,fontSize:11,color:S.amber}}>⚠ First time? Go to Settings and add your Rounds + rates first</div>}
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <div onClick={()=>setView("settings")} style={{flex:1,background:noRounds?S.amber:S.panel,border:"1px solid "+(noRounds?S.amber:S.border),color:noRounds?"#000":S.text,padding:"11px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center"}}>⚙ Settings — Rounds &amp; Rates</div>
+          <div onClick={()=>setView("help")} style={{background:S.panel,border:"1px solid "+S.border,color:S.cyan,padding:"11px 16px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center"}}>❓ Help</div>
+        </div>
+      </>);
+    })()}
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {data.periods.length===0 && <div style={{color:S.muted,textAlign:"center",padding:32}}>no periods yet</div>}
+      {[...data.periods].reverse().map((p,ri) => {
+        const pi=data.periods.length-1-ri;
+        const s=pStats(p);
+        const durH=Math.floor(s.mins/60),durM=s.mins%60;
+        return (
+          <div key={pi} onClick={()=>{setActivePi(pi);setView("period");}}
+            style={{background:S.panel,border:"1px solid "+S.border,borderRadius:10,padding:"14px 16px",cursor:"pointer"}}>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:8}}>{p.name} <span style={{color:S.muted,fontSize:11}}>{p.days.length}d</span></div>
+            <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:12}}>
+              <span style={{color:S.muted}}>parcels <b style={{color:S.text}}>{s.total}</b></span>
+              <span style={{color:S.muted}}>delivered <b style={{color:S.green}}>{pct(s.success,s.total)}</b></span>
+              <span style={{color:S.amber,fontWeight:600}}>{fmt(s.amount)}</span>
+              <span style={{color:S.muted}}>{s.miles}mi / {durH}h{durM}m</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    <div style={{marginTop:26,paddingTop:16,borderTop:"1px solid "+S.border,textAlign:"center"}}>
+      <div style={{marginBottom:10}}>
+        <a href="https://buymeacoffee.com/lbpdeliverytracker" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",fontSize:11.5,color:S.muted}}>App stays free either way — ☕ <span style={{color:S.cyan}}>Buy me a coffee</span></a>
+      </div>
+      <div>
+        <a href="mailto:lbpdeliverytracker@outlook.com?subject=Delivery%20Tracker%20-%20Help" style={{textDecoration:"none",fontSize:11.5,color:S.muted}}>Problems or suggestions? 📧 <span style={{color:S.cyan}}>Contact me</span></a>
+      </div>
+    </div>
+  </>);
+  if (view==="add_period") return wrap(<>
+    {topBar("NEW PERIOD", ()=>setView("home"))}
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <input type="text" value={periodName} onChange={e=>setPeriodName(e.target.value)} placeholder="e.g. Jun W1 / Period 12"
+        onKeyDown={e=>{if(e.key==="Enter"&&periodName.trim()){persist({...data,periods:[...data.periods,{name:periodName.trim(),days:[],createdAt:Date.now()}]});showToast("Created");setPeriodName("");setView("home");}}} />
+      <Btn onClick={()=>{if(!periodName.trim())return;persist({...data,periods:[...data.periods,{name:periodName.trim(),days:[],createdAt:Date.now()}]});showToast("Created");setPeriodName("");setView("home");}}>CREATE</Btn>
+    </div>
+  </>);
+
+  // PERIOD VIEW
+  if (view==="period" && activePeriod) {
+    const s=pStats(activePeriod);
+    const durH=Math.floor(s.mins/60),durM=s.mins%60;
+    return wrap(<>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:20}}>
+        <div onClick={()=>setView("home")} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer"}}>← back</div>
+        <PeriodNameEditor name={activePeriod.name} onSave={newName=>{
+          const periods=data.periods.map((p,pi)=>pi!==activePi?p:{...p,name:newName});
+          persist({...data,periods}); showToast("Renamed");
+        }} />
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+        <Stat label="Manifest" value={s.total} />
+        <Stat label="Delivered" value={s.success} color={S.green} />
+        <Stat label="CF" value={s.cf} color={S.amber} />
+        <Stat label="Collection" value={s.types["Collection"]||0} color={S.cyan} />
+        <Stat label="Earned" value={fmt(s.amount)} color={S.amber} />
+        <Stat label="Miles" value={s.miles+"mi"} color={S.cyan} />
+        <Stat label="Drive" value={durH+"h"+durM+"m"} color={S.cyan} />
+      </div>
+      {Object.keys(s.types).length>0 && (
+        <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+          <div style={{fontSize:10,color:S.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Parcel Types Total</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {Object.entries(s.types).sort((a,b)=>b[1]-a[1]).map(([t,c],i)=>(
+              <div key={i} style={{display:"flex",gap:6,alignItems:"center",background:S.bg,border:"1px solid "+S.border,borderRadius:5,padding:"5px 10px"}}>
+                <span style={{color:S.text,fontSize:12}}>{t}</span>
+                <span style={{color:S.cyan,fontWeight:700,fontSize:13}}>{c}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <Btn color="cyan" onClick={()=>setView("paste")} style={{marginBottom:8}}>📋 Paste Manifest Text</Btn>
+      <Btn onClick={()=>{ initManual(); setView("manual"); }} style={{marginBottom:8}}>✏️ Manual Entry (no manifest)</Btn>
+      <Btn color="red" onClick={()=>{if(confirm("Delete period?"))deletePeriod();}} style={{marginBottom:18}}>DELETE PERIOD</Btn>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {activePeriod.days.length===0 && <div style={{color:S.muted,fontSize:12,textAlign:"center",padding:24}}>no days yet</div>}
+        {activePeriod.days.map((d,i)=>({d,i})).sort((a,b)=>dateKey(b.d.date)-dateKey(a.d.date)).map(({d,i})=>{
+          const di=i;
+          return (
+            <div key={di} style={{background:S.panel,border:"1px solid "+S.border,borderRadius:10,padding:"12px 14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <span style={{fontWeight:700}}>{d.date}</span>
+                <div style={{display:"flex",gap:6}}>
+                  <div onClick={()=>setView("day_"+di)} style={{background:S.card,color:S.text,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>detail</div>
+                  <div onClick={()=>{if(confirm("Delete?"))deleteDay(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:12}}>
+                <span style={{color:S.muted}}>manifest <b style={{color:S.text}}>{d.manifested}</b></span>
+                <span style={{color:S.green}}>✓{d.successful} ({pct(d.successful,d.manifested)})</span>
+                <span style={{color:S.amber}}>cf{d.carry_forward}</span>
+                <span style={{color:S.amber,fontWeight:600}}>{fmt(dayAmount(d,rateConfig))}</span>
+                {d.distance_miles>0 && <span style={{color:S.cyan}}>{d.distance_miles}mi {d.duration_hours}h{d.duration_minutes}m</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>);
+  }
+
+  // PASTE VIEW
+  // MANUAL ENTRY VIEW
+  if (view==="manual") {
+    const setRoundNum = (i,val) => setManualList(L=>L.map((r,idx)=>idx===i?{...r,round:val}:r));
+    const setCount = (i,type,val) => setManualList(L=>L.map((r,idx)=>idx===i?{...r,counts:{...r.counts,[type]:val}}:r));
+    const addRound = () => { const blank={}; PARCEL_TYPE_LIST.forEach(t=>blank[t]=""); setManualList(L=>[...L,{round:"",counts:blank}]); };
+    const removeRound = (i) => setManualList(L=>L.filter((_,idx)=>idx!==i));
+    const inp = {width:80,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none",textAlign:"right"};
+    const avg = avgMilesHours();
+    return wrap(<>
+      {topBar("✏️ Manual Entry", ()=>setView("period"))}
+      <div style={{fontSize:11,color:S.muted,marginBottom:12,lineHeight:1.5}}>Use this when there was no manifest. Check your figures in the official Evri app (My Pay → Estimated pay → by round) and type the quantities in. Pay is worked out automatically from your rates.</div>
+
+      <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:12}}>
+        <div style={{fontSize:11,color:S.muted,marginBottom:5}}>Date — type 4 digits (day + month)</div>
+        <input type="text" inputMode="numeric" value={manualDate} onChange={e=>setManualDate(e.target.value)} placeholder="e.g. 0506 for 5 June"
+          style={{width:"100%",background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"7px 10px",outline:"none"}} />
+        <div style={{fontSize:10,color:S.muted,marginTop:5}}>No need to type a slash — year added automatically</div>
+      </div>
+
+      {manualList.map((r,i)=>(
+        <div key={i} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{color:S.cyan,fontWeight:700,fontSize:13}}>Round</span>
+              <input type="text" inputMode="numeric" value={r.round} onChange={e=>setRoundNum(i,e.target.value)} placeholder="e.g. 123456"
+                style={{width:120,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none"}} />
+            </div>
+            {manualList.length>1 && <div onClick={()=>removeRound(i)} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>remove</div>}
+          </div>
+          {PARCEL_TYPE_LIST.map(type=>(
+            <div key={type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
+              <input type="number" min="0" value={r.counts[type]??""} onChange={e=>setCount(i,type,e.target.value)} placeholder="0" style={inp} />
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <div onClick={addRound} style={{background:S.panel,border:"1px dashed "+S.cyan+"66",color:S.cyan,padding:"12px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center",marginBottom:12}}>+ Round</div>
+
+      <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:12}}>
+        <div style={{fontWeight:700,marginBottom:10,fontSize:13}}>Day Summary</div>
+        {[["Successful deliveries","successful"],["Carry forward","carry_forward"],["Cannot deliver","cannot_deliver"]].map(([lbl,key])=>(
+          <div key={key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <span style={{flex:1,fontSize:13,color:S.text}}>{lbl}</span>
+            <input type="number" min="0" value={manualDay[key]} onChange={e=>setManualDay(d=>({...d,[key]:e.target.value}))} placeholder="0" style={inp} />
+          </div>
+        ))}
+      </div>
+
+      <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:14}}>
+        <div style={{fontWeight:700,marginBottom:6,fontSize:13}}>Distance / Time</div>
+        <div style={{fontSize:10.5,color:S.muted,marginBottom:10,lineHeight:1.5}}>{avg ? `Leave blank to use your average (${avg.miles} mi · ${avg.hours} h).` : "No history yet — leave blank for 0, or enter a typical value."}</div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{flex:1,fontSize:13,color:S.text}}>Miles</span>
+          <input type="number" min="0" step="0.01" value={manualDist.miles} onChange={e=>setManualDist(d=>({...d,miles:e.target.value}))} placeholder={avg?String(avg.miles):"0"} style={inp} />
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{flex:1,fontSize:13,color:S.text}}>Hours</span>
+          <input type="number" min="0" step="0.1" value={manualDist.hours} onChange={e=>setManualDist(d=>({...d,hours:e.target.value}))} placeholder={avg?String(avg.hours):"0"} style={inp} />
+        </div>
+      </div>
+
+      <Btn color="green" onClick={saveManual}>✓ SAVE</Btn>
+    </>);
+  }
+
+  // PASTE VIEW
+  if (view==="paste") return wrap(<>
+    {topBar("ADD DAY", ()=>setView("period"))}
+
+    <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px"}}>
+      <div style={{fontWeight:700,marginBottom:6,color:S.cyan}}>📋 Paste Manifest Text</div>
+      <div style={{fontSize:11,color:S.muted,marginBottom:10,lineHeight:1.5}}>Open your Manifest Summary in the courier app, select &amp; copy all the text (including the Day Summary), then paste it here.</div>
+      <textarea rows={12} value={pasteText} onChange={e=>setPasteText(e.target.value)}
+        placeholder={"Round Number: 123456\nManifest Date: 01/01/2026\nSmall Packet: 30\nPacket: 10\n...\nSuccessful deliveries: 150\nCarry forward: 5\nCannot deliver: 0"} />
+      {parseError && <div style={{color:S.red,fontSize:11,marginTop:8}}>{parseError}</div>}
+      <Btn color="cyan" onClick={doParse} style={{marginTop:10}}>PARSE →</Btn>
+    </div>
+  </>);
+
+  // CONFIRM VIEW
+  if (view==="confirm" && parsed) {
+    let totalAmount=0;
+    (parsed.manifests||[]).forEach(m=>{totalAmount+=calcRound(m.round_number,m.parcels,rateConfig).total;});
+    return wrap(<>
+      {topBar("CONFIRM DATA", ()=>setView("paste"))}
+      <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+        <div style={{display:"flex",gap:20,flexWrap:"wrap",fontSize:13}}>
+          <span>📅 <b>{parsed.date}</b></span>
+          {parsed.distance_miles && <span style={{color:S.cyan}}>🚐 {parsed.distance_miles}mi</span>}
+          {parsed.duration_hours!=null && <span style={{color:S.cyan}}>⏱ {parsed.duration_hours}h {parsed.duration_minutes}m</span>}
+        </div>
+      </div>
+      {(parsed.manifests||[]).map((m,i)=>{
+        const {total,lines}=calcRound(m.round_number,m.parcels,rateConfig);
+        return (
+          <div key={i} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+              <b style={{fontSize:14}}>Round {m.round_number}</b>
+              <span style={{color:S.amber,fontWeight:700}}>{fmt(total)}</span>
+            </div>
+            {lines.filter(l=>l.count>0).map((l,j)=>(
+              <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                <span style={{color:S.text}}>{l.type} <span style={{color:S.cyan}}>×{l.count}</span></span>
+                <span style={{color:S.muted}}>£{l.rate.toFixed(2)} = <b style={{color:S.amber}}>£{l.sub.toFixed(2)}</b></span>
+              </div>
+            ))}
+            {lines.filter(l=>l.count>0).length===0 && <div style={{color:S.red,fontSize:11}}>⚠ No parcel counts found</div>}
+          </div>
+        );
+      })}
+      {(() => {
+        const combined={};let grandCount=0;
+        (parsed.manifests||[]).forEach(m=>Object.entries(m.parcels).forEach(([type,count])=>{if(count>0){combined[type]=(combined[type]||0)+count;grandCount+=count;}}));
+        if(Object.keys(combined).length===0) return null;
+        return (
+          <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+            <div style={{fontWeight:700,marginBottom:8,display:"flex",justifyContent:"space-between"}}>
+              <span>All Rounds Combined</span>
+              <span style={{color:S.muted,fontSize:12}}>total {grandCount}</span>
+            </div>
+            {Object.entries(combined).map(([type,count],j)=>(
+              <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                <span style={{color:S.text}}>{type}</span><span style={{color:S.cyan}}>×{count}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+      {parsed.day_summary && (
+        <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:12,fontSize:12}}>
+          <div style={{fontWeight:700,marginBottom:6}}>Day Summary</div>
+          <div style={{display:"flex",gap:20}}>
+            <span style={{color:S.green}}>✓ {parsed.day_summary.successful}</span>
+            <span style={{color:S.amber}}>CF {parsed.day_summary.carry_forward}</span>
+            <span style={{color:S.red}}>✗ {parsed.day_summary.cannot_deliver}</span>
+          </div>
+        </div>
+      )}
+      <div style={{background:S.panel,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{color:S.muted}}>Total Earnings</span>
+        <span style={{color:S.amber,fontWeight:700,fontSize:20}}>{fmt(totalAmount)}</span>
+      </div>
+      <Btn color="green" onClick={saveDay}>✓ SAVE</Btn>
+    </>);
+  }
+
+  // DAY DETAIL
+  if (view.startsWith("day_") && activePeriod) {
+    const di=parseInt(view.split("_")[1]);
+    const d=activePeriod.days[di];
+    if(!d){setView("period");return null;}
+    return wrap(<>
+      {topBar("📅 "+d.date, ()=>setView("period"))}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+        <Stat label="Manifest" value={d.manifested} />
+        <Stat label="Delivered" value={d.successful} color={S.green} />
+        <Stat label="CF" value={d.carry_forward} color={S.amber} />
+        <Stat label="Collection" value={(d.rounds||[]).reduce((a,r)=>a+(r.parcels?.Collection||0),0)} color={S.cyan} />
+        <Stat label="Earned" value={fmt(dayAmount(d,rateConfig))} color={S.amber} />
+        {d.distance_miles>0 && <Stat label="Miles" value={d.distance_miles+"mi"} color={S.cyan} />}
+        {d.duration_hours>0 && <Stat label="Drive" value={d.duration_hours+"h"+d.duration_minutes+"m"} color={S.cyan} />}
+      </div>
+      {(d.rounds||[]).map((r,i)=>{
+        const live=calcRound(r.round,r.parcels,rateConfig);
+        return (
+        <div key={i} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+            <b>Round {r.round}</b><span style={{color:S.amber}}>{fmt(live.total)}</span>
+          </div>
+          {live.lines.map((l,j)=>(
+            <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:S.muted,marginBottom:3}}>
+              <span>{l.type}</span>
+              <span>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
+            </div>
+          ))}
+        </div>
+      );})}
+    </>);
+  }
+
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
