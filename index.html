@@ -44,6 +44,7 @@ function applyTheme(light) { Object.assign(S, light ? LIGHT : DARK); }
 try { applyTheme(localStorage.getItem("dt_light")==="1"); } catch {}
 
 const PARCEL_TYPE_LIST = ["Small Packet","Packet","Standard","Postable","Heavy","Heavy/Large","Hanging Garment","Collection"];
+const LOGO = "data:image/jpeg;base64,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";
 
 // Default rates (user can change in Settings)
 const DEFAULT_RATES = {
@@ -91,29 +92,53 @@ function saveData(d) {
   try { localStorage.setItem("delivery_tracker", JSON.stringify(d)); } catch {}
 }
 
-function parseText(text) {
+function parseText(rawText) {
+  // Normalise common copy/OCR glitches: lone letter O used as zero (e.g. "Cannot deliver: O")
+  const text = rawText
+    .replace(/:\s*O\b/g, ": 0")
+    .replace(/\u00A0/g, " ");
   const PARCEL_TYPES = ["Small Packet","Heavy/Large","Hanging Garment","Standard","Postable","Packet","Heavy","Collection"];
   const result = { date:null, distance_miles:null, duration_hours:null, duration_minutes:null, manifests:[], day_summary:null };
   const dateM = text.match(/Manifest Date\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
   if (dateM) result.date = dateM[1];
-  const distM = text.match(/estimated distance of ([\d.]+) mile/i);
+  const distM = text.match(/estimated distance of ([\d.]+)\s*mile/i);
   if (distM) result.distance_miles = parseFloat(distM[1]);
-  const durM = text.match(/(\d+) hour\(s\) (\d+) minute/i);
+  const durM = text.match(/(\d+)\s*hour\(s\)\s*(\d+)\s*minute/i);
   if (durM) { result.duration_hours = parseInt(durM[1]); result.duration_minutes = parseInt(durM[2]); }
-  const blocks = text.split(/(?=Round Number)/i).filter(b => /Round Number/i.test(b));
-  blocks.forEach(block => {
-    const rnM = block.match(/Round Number\s*:?\s*(\d+)/i);
-    if (!rnM) return;
-    const roundNum = parseInt(rnM[1]);
-    const parcels = {};
-    PARCEL_TYPES.forEach(type => {
-      const esc = type.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const re = new RegExp("(?:^|\\n)[ \\t]*" + esc + "[ \\t]*:?[ \\t]*(\\d+)", "im");
-      const m = block.match(re);
-      parcels[type] = m ? parseInt(m[1]) : 0;
+  // Round number may be "Round Number: 123", "RoundNumber:123", "Round 123", etc.
+  const roundRe = /Round\s*(?:Number)?\s*:?\s*(\d{3,})/ig;
+  // Split into blocks at each round marker so parcels stay with their round
+  const markers = [];
+  let mm;
+  while ((mm = roundRe.exec(text)) !== null) {
+    markers.push({ idx: mm.index, end: roundRe.lastIndex, round: parseInt(mm[1]) });
+  }
+  // Helper: count parcel types within a segment using a "consume" approach —
+  // match longest type names first and blank them out so e.g. "Packet" can't
+  // re-match the tail of "Small Packet", and "Heavy" can't match "Heavy/Large".
+  const TYPE_ORDER = ["Small Packet","Heavy/Large","Hanging Garment","Postable","Standard","Collection","Packet","Heavy"];
+  if (markers.length > 0) {
+    markers.forEach((mk, i) => {
+      const segStart = mk.end;
+      const segEnd = (i+1 < markers.length) ? markers[i+1].idx : text.length;
+      let seg = text.slice(segStart, segEnd);
+      const cut = seg.search(/estimated distance|Successful deliveries|Service Offers|Postcode/i);
+      if (cut !== -1) seg = seg.slice(0, cut);
+      const parcels = {};
+      PARCEL_TYPES.forEach(t => parcels[t] = 0);
+      let work = seg;
+      TYPE_ORDER.forEach(type => {
+        const esc = type.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(esc + "\\s*:?\\s*(\\d+)", "i");
+        const m = work.match(re);
+        if (m) {
+          parcels[type] = parseInt(m[1]);
+          work = work.slice(0, m.index) + " ".repeat(m[0].length) + work.slice(m.index + m[0].length);
+        }
+      });
+      result.manifests.push({ round_number: mk.round, parcels });
     });
-    result.manifests.push({ round_number: roundNum, parcels });
-  });
+  }
   const succM = text.match(/Successful deliveries\s*:?\s*(\d+)/i);
   const cfM = text.match(/Carry forward\s*:?\s*(\d+)/i);
   const failM = text.match(/Cannot deliver\s*:?\s*(\d+)/i);
@@ -221,6 +246,7 @@ function App() {
   const [manualDay, setManualDay] = useState({successful:"",carry_forward:"",cannot_deliver:""});
   const [manualDist, setManualDist] = useState({miles:"",hours:""});
   const [fontScale, setFontScale] = useState(() => { try { return parseFloat(localStorage.getItem("dt_font"))||1; } catch { return 1; } });
+  const [expandedDay, setExpandedDay] = useState(null);
 
   // keep palette + body bg in sync with theme
   applyTheme(light);
@@ -359,6 +385,14 @@ function App() {
     const valid = manualList.filter(r=>/^\d+$/.test((r.round||"").trim()));
     if(valid.length===0){ showToast("Enter at least one Round number", false); return; }
 
+    // block save if any round has no rate set in Settings
+    const knownRounds = Object.keys(rateConfig.rounds||{});
+    const missing = valid.map(r=>r.round.trim()).filter(rn=>!knownRounds.includes(rn));
+    if(missing.length>0){
+      showToast("Round "+missing.join(", ")+" has no rate — add it in Settings first", false);
+      return;
+    }
+
     let manifested=0, amount=0;
     const rounds=[];
     valid.forEach(r => {
@@ -415,9 +449,15 @@ function App() {
   );
 
   const topBar = (title, back) => (
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
-      {back && <div onClick={back} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer"}}>← back</div>}
-      <span style={{fontWeight:700,fontSize:16}}>{title}</span>
+    <div style={{position:"sticky",top:0,zIndex:50,background:S.bg,paddingTop:6,paddingBottom:10,marginBottom:14,borderBottom:"1px solid "+S.border}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <img alt="LBP" src={LOGO} style={{width:26,height:26,borderRadius:5}} />
+        <span style={{fontWeight:800,fontSize:15,letterSpacing:0.3}}>LBP Delivery Tracker</span>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        {back && <div onClick={back} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer"}}>← back</div>}
+        <span style={{fontWeight:700,fontSize:16}}>{title}</span>
+      </div>
     </div>
   );
 
@@ -425,9 +465,12 @@ function App() {
   if (view==="help") {
     const card = {background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:12};
     const h = {fontWeight:700,color:S.cyan,fontSize:14,marginBottom:8};
-    const p = {fontSize:12.5,color:S.text,lineHeight:1.6,marginBottom:6};
+    const p = {fontSize:12.5,color:S.text,lineHeight:1.7,marginBottom:6};
     const mut = {fontSize:11.5,color:S.muted,lineHeight:1.6};
     const codebox = {background:S.bg,border:"1px solid "+S.border,borderRadius:6,padding:"10px",fontSize:11,color:S.muted,lineHeight:1.5,marginTop:6,whiteSpace:"pre-wrap"};
+    // key = a highlighted button/term so the important words stand out from the wall of text
+    const Key = ({children}) => <b style={{color:S.cyan,background:S.cyan+"1e",padding:"1px 6px",borderRadius:4,whiteSpace:"nowrap"}}>{children}</b>;
+    const Hi = ({children}) => <b style={{color:S.amber}}>{children}</b>;
     return wrap(<>
       {topBar("❓ Help & Guide", ()=>setView("home"))}
 
@@ -443,46 +486,46 @@ function App() {
 
       <div style={card}>
         <div style={h}>1 · First-time setup</div>
-        <div style={p}>Go to <b>Settings — Rounds &amp; Rates</b> and tap <b>+ Add Round</b>. Enter your Round Number, then tap <b>⚡ Auto-fill from Standard rate</b> and type your Standard Parcel rate — the other parcel types are worked out automatically from Evri's pay bands. Edit any if yours differ. Repeat for each round you run.</div>
+        <div style={p}>Go to <Key>⚙ Settings</Key> and tap <Key>+ Add Round</Key>. Enter your Round Number, then just type your <Hi>Standard Parcel rate</Hi> in the green box — <Hi>every other parcel type fills in automatically</Hi> from Evri's pay bands. You can still edit any of them. Repeat for each round you run.</div>
       </div>
 
       <div style={card}>
         <div style={h}>2 · Create a Period</div>
-        <div style={p}>On the home screen tap <b>+ New Period</b> and give it a name (e.g. your pay period dates). A period holds all the days inside it and shows your totals.</div>
+        <div style={p}>On the home screen tap <Key>+ New Period</Key> and give it a name (e.g. your pay period dates). A period holds all the days inside it and shows your totals.</div>
       </div>
 
       <div style={card}>
         <div style={h}>3 · Add a day's data</div>
-        <div style={p}>You'll take 3 screenshots during a normal working day. Just copy the text from each and paste them together into one box:</div>
-        <div style={mut}><b style={{color:S.text}}>Before you start (Manifest Summary):</b> copy each round's summary — Round Number, date and parcel types.</div>
+        <div style={p}>You'll take <Hi>3 screenshots</Hi> during a normal working day. Copy the text from each and paste them <Hi>together into one box</Hi>:</div>
+        <div style={mut}><Hi>① Before you start (Manifest Summary):</Hi> copy each round's summary — Round Number, date and parcel types.</div>
         <img alt="Manifest Summary example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gdG9wIGJhciAtLT4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjQ0IiBmaWxsPSIjMWE4Y2ZmIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIyOCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIxNSIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk1BTklGRVNUIFNVTU1BUlk8L3RleHQ+CiAgPCEtLSBjYXJkIC0tPgogIDxyZWN0IHg9IjEyIiB5PSI1NiIgd2lkdGg9IjI5NiIgaGVpZ2h0PSIzMDAiIHJ4PSIxMCIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjZTJlNmVlIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI4NiIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxNiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPjAyODcwMDAwMDAwMDA8L3RleHQ+CgogIDwhLS0gaGlnaGxpZ2h0IGJveCBhcm91bmQgY29weSBhcmVhIC0tPgogIDxyZWN0IHg9IjIwIiB5PSIxMDAiIHdpZHRoPSIyODAiIGhlaWdodD0iMjEwIiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KCiAgPHRleHQgeD0iMTYwIiB5PSIxMjAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Sb3VuZCBOdW1iZXI6IDEyMzQ1NjwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjEzOCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk1hbmlmZXN0IERhdGU6IDA0LzA2LzIwMjY8L3RleHQ+CgogIDx0ZXh0IHg9IjMyIiB5PSIxNzAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIj5Ub3RhbCBEZWxpdmVyaWVzOiA2ODwvdGV4dD4KCiAgPHRleHQgeD0iMTYwIiB5PSIxOTYiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QYXJjZWwgVHlwZXM8L3RleHQ+CiAgPHRleHQgeD0iMzIiIHk9IjIyMCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiPlNtYWxsIFBhY2tldDogNDA8L3RleHQ+CiAgPHRleHQgeD0iMzIiIHk9IjI0MCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiPlBhY2tldDogOTwvdGV4dD4KICA8dGV4dCB4PSIzMiIgeT0iMjYwIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iYm9sZCI+UG9zdGFibGU6IDEzPC90ZXh0PgogIDx0ZXh0IHg9IjMyIiB5PSIyODAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIj5TdGFuZGFyZDogNDwvdGV4dD4KICA8dGV4dCB4PSIzMiIgeT0iMzAwIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iYm9sZCI+SGVhdnk6IDI8L3RleHQ+CgogIDwhLS0gYnV0dG9ucyAtLT4KICA8cmVjdCB4PSIyMCIgeT0iMzgwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjQwIiByeD0iMjAiIGZpbGw9IiNmZmYiIHN0cm9rZT0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iNDA1IiBmaWxsPSIjMWE4Y2ZmIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5SZWplY3Q8L3RleHQ+CiAgPHJlY3QgeD0iMjAiIHk9IjQ4MCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSI0MCIgcng9IjIwIiBmaWxsPSIjMGExYTUyIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI1MDUiIGZpbGw9IiMzZmQwZmYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkNvbnRpbnVlPC90ZXh0PgoKICA8IS0tIGxhYmVsIC0tPgogIDxyZWN0IHg9IjIwIiB5PSIzMTgiIHdpZHRoPSIyODAiIGhlaWdodD0iMjIiIHJ4PSI0IiBmaWxsPSIjZjViNTBhIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIzMzMiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7irIYgQ09QWSBUSElTIOKAlCBvbmUgYm94IHBlciByb3VuZDwvdGV4dD4KPC9zdmc+Cg==" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...mut,marginTop:10}}><b style={{color:S.text}}>The route popup:</b> copy the distance &amp; duration line.</div>
+        <div style={{...mut,marginTop:10}}><Hi>② The route popup:</Hi> copy the distance &amp; duration line.</div>
         <img alt="Route popup example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gZGltbWVkIGJnIC0tPgogIDxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNDQiIGZpbGw9IiM1YTcwOGYiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4IiBmaWxsPSIjZGZlNmVmIiBmb250LXNpemU9IjE1IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TUFOSUZFU1QgU1VNTUFSWTwvdGV4dD4KICA8cmVjdCB4PSIxMiIgeT0iNTYiIHdpZHRoPSIyOTYiIGhlaWdodD0iMjIwIiByeD0iMTAiIGZpbGw9IiNlOWVkZjMiLz4KICA8dGV4dCB4PSIxNjAiIHk9Ijg2IiBmaWxsPSIjN2E4YWEwIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+MDI4NzAwMDAwMDAwMDwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjExMiIgZmlsbD0iIzdhOGFhMCIgZm9udC1zaXplPSIxMSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Um91bmQgTnVtYmVyOiAxMjM0NTY8L3RleHQ+CgogIDwhLS0gcG9wdXAgLS0+CiAgPHJlY3QgeD0iMjQiIHk9IjE1MCIgd2lkdGg9IjI3MiIgaGVpZ2h0PSIyNzAiIHJ4PSIxMCIgZmlsbD0iI2Y0ZjVmNyIgc3Ryb2tlPSIjY2ZkNWUwIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIxODQiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5NYW5pZmVzdCBDb25maXJtYXRpb248L3RleHQ+CiAgPGxpbmUgeDE9IjI0IiB5MT0iMjAwIiB4Mj0iMjk2IiB5Mj0iMjAwIiBzdHJva2U9IiNkZmUzZWEiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjIyOCIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+QXJlIHlvdSBoYXBweSB0byBwcm9jZWVkIHdpdGggMzwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjI0NiIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+ZG93bmxvYWRlZCBtYW5pZmVzdChzKT88L3RleHQ+CgogIDwhLS0gaGlnaGxpZ2h0IHRoZSBkaXN0YW5jZS9kdXJhdGlvbiAtLT4KICA8cmVjdCB4PSIzNCIgeT0iMjYyIiB3aWR0aD0iMjUyIiBoZWlnaHQ9Ijc0IiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4NCIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMS41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Zb3VyIGRyYWZ0IHJvdXRlIGhhcyBhbiBlc3RpbWF0ZWQ8L3RleHQ+CiAgPHRleHQgeD0iMTYwIiB5PSIzMDIiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTEuNSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+ZGlzdGFuY2Ugb2YgMjcuNzUgbWlsZShzKSBhbmQgZHVyYXRpb248L3RleHQ+CiAgPHRleHQgeD0iMTYwIiB5PSIzMjAiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTEuNSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+b2YgOSBob3VyKHMpIDEzIG1pbnV0ZShzKTwvdGV4dD4KCiAgPGxpbmUgeDE9IjE2MCIgeTE9IjM2MCIgeDI9IjE2MCIgeTI9IjQxMCIgc3Ryb2tlPSIjZGZlM2VhIi8+CiAgPGxpbmUgeDE9IjM0IiB5MT0iMzYwIiB4Mj0iMjg2IiB5Mj0iMzYwIiBzdHJva2U9IiNkZmUzZWEiLz4KICA8dGV4dCB4PSI5NyIgeT0iMzkyIiBmaWxsPSIjMWEyNzQwIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObzwvdGV4dD4KICA8dGV4dCB4PSIyMjMiIHk9IjM5MiIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+WWVzPC90ZXh0PgoKICA8IS0tIGxhYmVsIC0tPgogIDxyZWN0IHg9IjM0IiB5PSI0MzAiIHdpZHRoPSIyNTIiIGhlaWdodD0iMjIiIHJ4PSI0IiBmaWxsPSIjZjViNTBhIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI0NDUiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7irIYgQ09QWSBUSEUgRElTVEFOQ0UgJmFtcDsgRFVSQVRJT04gTElORTwvdGV4dD4KPC9zdmc+Cg==" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...mut,marginTop:10}}><b style={{color:S.text}}>End of day (Day Summary):</b> copy the delivery summary.</div>
+        <div style={{...mut,marginTop:10}}><Hi>③ End of day (Day Summary):</Hi> copy the delivery summary.</div>
         <img alt="Day Summary example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNDQiIGZpbGw9IiMxYThjZmYiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4IiBmaWxsPSIjZmZmIiBmb250LXNpemU9IjE1IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+REFZIFNVTU1BUlk8L3RleHQ+CgogIDwhLS0gbWVudSByb3cgLS0+CiAgPHJlY3QgeD0iMTIiIHk9IjU0IiB3aWR0aD0iMTQyIiBoZWlnaHQ9IjMwIiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjgzIiB5PSI3NCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TWVudTwvdGV4dD4KICA8cmVjdCB4PSIxNjYiIHk9IjU0IiB3aWR0aD0iMTQyIiBoZWlnaHQ9IjMwIiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjIzNyIgeT0iNzQiIGZpbGw9IiNmZmYiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNpZ25vdXQ8L3RleHQ+CiAgPHJlY3QgeD0iMTIiIHk9IjkwIiB3aWR0aD0iMjk2IiBoZWlnaHQ9IjI4IiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iMTA5IiBmaWxsPSIjZmZmIiBmb250LXNpemU9IjEyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5IZWxwPC90ZXh0PgoKICA8IS0tIHllbGxvdyBub3RlIC0tPgogIDxyZWN0IHg9IjEyIiB5PSIxMjYiIHdpZHRoPSIyOTYiIGhlaWdodD0iNDQiIHJ4PSI2IiBmaWxsPSIjZmRmNmM4IiBzdHJva2U9IiNlN2RjYTAiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjE0NiIgZmlsbD0iIzMzMyIgZm9udC1zaXplPSIxMC41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QbGVhc2UgZW5zdXJlIGFsbCBjYXJyaWVkIGZvcndhcmQgcGFyY2VsczwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjE2MSIgZmlsbD0iIzMzMyIgZm9udC1zaXplPSIxMC41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5hcmUgc3RvcmVkIGluIGEgc2VjdXJlIHBsYWNlLjwvdGV4dD4KCiAgPCEtLSBzdGF0cyBjYXJkIHdpdGggaGlnaGxpZ2h0IC0tPgogIDxyZWN0IHg9IjEyIiB5PSIxODIiIHdpZHRoPSIyOTYiIGhlaWdodD0iMTgwIiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8dGV4dCB4PSIyOCIgeT0iMjEyIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEzIiBmb250LXdlaWdodD0iYm9sZCI+U3VjY2Vzc2Z1bCBkZWxpdmVyaWVzOiAyNDM8L3RleHQ+CiAgPHRleHQgeD0iMjgiIHk9IjIzNCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMyIgZm9udC13ZWlnaHQ9ImJvbGQiPkNhcnJ5IGZvcndhcmQ6IDk8L3RleHQ+CiAgPHRleHQgeD0iMjgiIHk9IjI1NiIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMyIgZm9udC13ZWlnaHQ9ImJvbGQiPkNhbm5vdCBkZWxpdmVyOiAwPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIyOTIiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5TdWNjZXNzZnVsIGNvbGxlY3Rpb25zOiAxPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIzMTQiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5DYXJyeSBmb3J3YXJkOiAwPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIzMzYiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5DYW5ub3QgY29sbGVjdDogMjwvdGV4dD4KCiAgPCEtLSBsYWJlbCAtLT4KICA8cmVjdCB4PSIxMiIgeT0iMzcyIiB3aWR0aD0iMjk2IiBoZWlnaHQ9IjIyIiByeD0iNCIgZmlsbD0iI2Y1YjUwYSIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iMzg3IiBmaWxsPSIjMTExIiBmb250LXNpemU9IjExIiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+4qyGIENPUFkgVEhJUyBBVCBFTkQgT0YgREFZPC90ZXh0Pgo8L3N2Zz4K" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...p,marginTop:10}}>Open your period, tap <b>📋 Paste Manifest Text</b>, paste everything in, tap <b>PARSE →</b>, check the figures, then <b>✓ SAVE</b>. If you run several rounds, paste all of their Manifest Summaries together in the same box.</div>
+        <div style={{...p,marginTop:10}}>Open your period, tap <Key>📋 Paste Manifest Text</Key>, paste everything in, tap <Key>PARSE →</Key>, check the figures, then <Key>✓ SAVE</Key>. If you run several rounds, paste all of their Manifest Summaries together in the same box.</div>
       </div>
 
       <div style={card}>
         <div style={h}>4 · No manifest? Use Manual Entry</div>
-        <div style={p}>Sometimes Evri's system has no manifest in the morning, so you get no Manifest Summary screenshots. In that case, wait until the figures appear in the official Evri app under <b>My Pay → Estimated pay → by round</b>, then enter them by hand.</div>
-        <div style={p}>Open your period and tap <b>✏️ Manual Entry</b>. Type the <b>date</b> as 4 digits (e.g. 0506 for 5 June — no slash needed). For each round, type the <b>Round number</b> and the quantity of each parcel type. Tap <b>+ Round</b> if you ran more than one.</div>
-        <div style={p}>Fill in the <b>Day Summary</b> from your end-of-day screenshot. For <b>Miles / Hours</b>, you won't know these without a manifest — just leave them blank and the app fills in your usual average. Tap <b>✓ SAVE</b> and your pay is worked out automatically.</div>
+        <div style={p}>Sometimes Evri's system has <Hi>no manifest in the morning</Hi>, so you get no Manifest Summary screenshots. In that case, wait until the figures appear in the official Evri app under <Hi>My Pay → Estimated pay → by round</Hi>, then enter them by hand.</div>
+        <div style={p}>Open your period and tap <Key>✏️ Manual Entry</Key>. Type the <Hi>date as 4 digits</Hi> (e.g. <Hi>0506</Hi> for 5 June — no slash needed). For each round, type the <Hi>Round number</Hi> and the quantity of each parcel type. Tap <Key>+ Round</Key> if you ran more than one.</div>
+        <div style={p}>Fill in the <Hi>Day Summary</Hi> from your end-of-day screenshot. For <Hi>Miles / Hours</Hi>, you won't know these without a manifest — just <Hi>leave them blank</Hi> and the app fills in your usual average. Tap <Key>✓ SAVE</Key> and your pay is worked out automatically.</div>
       </div>
 
       <div style={card}>
         <div style={h}>5 · Your earnings update automatically</div>
-        <div style={p}>Pay is calculated live from the rates in Settings. If your rates ever change, just update them in Settings — every saved day recalculates instantly. No need to re-enter anything.</div>
+        <div style={p}>Pay is calculated live from the rates in Settings. If your <Hi>rates ever change</Hi>, just update them in <Key>⚙ Settings</Key> — <Hi>every saved day recalculates instantly</Hi>. No need to re-enter anything.</div>
       </div>
 
       <div style={card}>
         <div style={h}>6 · Back up your data (important)</div>
-        <div style={p}>Your data is stored only on this phone. Tap <b>⬇ Backup</b> on the home screen now and then to save a file. If you clear your browser, change phone, or anything goes wrong, tap <b>⬆ Restore</b> to load it back.</div>
+        <div style={p}>Your data is stored <Hi>only on this phone</Hi>. Tap <Key>⬇ Backup</Key> on the home screen now and then to save a file. If you clear your browser, change phone, or anything goes wrong, tap <Key>⬆ Restore</Key> to load it back.</div>
       </div>
 
       <div style={card}>
         <div style={h}>7 · Display options</div>
-        <div style={p}>Use <b>Text − / +</b> to make everything bigger or smaller, and the <b>Light / Dark</b> toggle to switch theme. Your choice is remembered.</div>
+        <div style={p}>Use <Key>Text − / +</Key> to make everything bigger or smaller, and the <Key>Light / Dark</Key> toggle to switch theme. Your choice is remembered.</div>
       </div>
     </>);
   }
@@ -490,27 +533,29 @@ function App() {
   // SETTINGS VIEW
   if (view==="settings") {
     const rounds = rateConfig.rounds || {};
+    const r2 = v => Math.round(v*100)/100;
+    // compute all 8 rates from a Standard base, per Evri bands + minimums
+    const deriveFromStandard = (base) => ({
+      "Small Packet":   Math.max(r2(base*0.69), 0.35),
+      "Packet":         Math.max(r2(base*0.75), 0.40),
+      "Standard":       r2(base),
+      "Postable":       Math.max(r2(base*0.60), 0.30),
+      "Heavy":          Math.max(r2(base), 1.00),
+      "Heavy/Large":    Math.max(r2(base), 1.00),
+      "Hanging Garment":r2(base),
+      "Collection":     r2(base*0.80),
+    });
     const updateRate = (round, type, val) => {
       const nc = {...rateConfig, rounds:{...rounds, [round]:{...(rounds[round]||{}), [type]: parseFloat(val)||0}}};
       setRateConfig(nc); saveRates(nc);
     };
-    const autoFill = (round) => {
-      const std = prompt("Enter your Standard Parcel rate (£), e.g. 1.00\nOther types are auto-calculated from Evri's % bands and minimums. Edit any after.");
-      const base = parseFloat(std);
-      if (!base || base<=0) { if(std!==null) showToast("Enter a valid number", false); return; }
-      const r2 = v => Math.round(v*100)/100;
-      const filled = {
-        "Small Packet":   Math.max(r2(base*0.69), 0.35),
-        "Packet":         Math.max(r2(base*0.75), 0.40),
-        "Standard":       r2(base),
-        "Postable":       Math.max(r2(base*0.60), 0.30),
-        "Heavy":          Math.max(r2(base), 1.00),
-        "Heavy/Large":    Math.max(r2(base), 1.00),
-        "Hanging Garment":r2(base),
-        "Collection":     r2(base*0.80),
-      };
+    // typing the Standard rate auto-fills every other type (still editable after)
+    const setStandard = (round, val) => {
+      const base = parseFloat(val);
+      if (!base || base<=0) { updateRate(round, "Standard", val); return; }
+      const filled = deriveFromStandard(base);
       const nc = {...rateConfig, rounds:{...rounds, [round]:filled}};
-      setRateConfig(nc); saveRates(nc); setFormKey(k=>k+1); showToast("Auto-filled — edit any if needed");
+      setRateConfig(nc); saveRates(nc); setFormKey(k=>k+1);
     };
     const addRound = () => {
       const rn = prompt("Enter your Round Number (e.g. 123456):");
@@ -527,63 +572,70 @@ function App() {
       setRateConfig(nc); saveRates(nc);
     };
     const roundKeys = Object.keys(rounds);
+    const inp = {width:90,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none",textAlign:"right"};
+    const OTHER_TYPES = PARCEL_TYPE_LIST.filter(t=>t!=="Standard");
     return wrap(<>
       {topBar("⚙ Settings", ()=>setView("home"))}
-      <div style={{fontSize:11,color:S.muted,marginBottom:14,lineHeight:1.5}}>Add each of your Round Numbers. Tip: tap "Auto-fill" and just enter your Standard Parcel rate — the rest are worked out from Evri's pay bands. Edit any if yours differ.</div>
 
-      {roundKeys.length===0 && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"12px 14px",marginBottom:14,fontSize:12,color:S.amber}}>No rounds yet. Tap "Add Round" below to start.</div>}
+      <div onClick={addRound} style={{background:S.cyan,color:"#000",padding:"13px 0",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center",marginBottom:14}}>+ Add Round</div>
+
+      <div style={{fontSize:11,color:S.muted,marginBottom:14,lineHeight:1.5}}>Just type your <b style={{color:S.text}}>Standard Parcel rate</b> — every other type fills in automatically from Evri's pay bands. You can still edit any of them below.</div>
+
+      {roundKeys.length===0 && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"12px 14px",marginBottom:14,fontSize:12,color:S.amber}}>No rounds yet. Tap "+ Add Round" above to start.</div>}
 
       {roundKeys.map(round=>(
         <div key={round} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"14px",marginBottom:14}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <span style={{fontWeight:700,color:S.cyan,fontSize:15}}>Round {round}</span>
             <div onClick={()=>{if(confirm("Remove Round "+round+"?"))removeRound(round);}}
               style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>remove</div>
           </div>
-          <div onClick={()=>autoFill(round)} style={{background:S.green+"22",border:"1px solid "+S.green+"55",color:S.green,padding:"7px 0",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"center",marginBottom:12}}>⚡ Auto-fill from Standard rate</div>
-          {PARCEL_TYPE_LIST.map(type=>(
+
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,background:S.green+"14",border:"1px solid "+S.green+"44",borderRadius:6,padding:"8px 10px"}}>
+            <span style={{flex:1,fontSize:13,fontWeight:700,color:S.green}}>⚡ Standard Parcel</span>
+            <input key={round+"_std_"+formKey} type="number" step="0.01" inputMode="decimal" defaultValue={rounds[round]["Standard"]??0}
+              onChange={e=>setStandard(round,e.target.value)} placeholder="1.00" style={inp} />
+          </div>
+          <div style={{fontSize:10,color:S.muted,marginBottom:12}}>Type this first — the rest fill in automatically ↓</div>
+
+          {OTHER_TYPES.map(type=>(
             <div key={type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
-              <input key={round+"_"+type+"_"+formKey} type="number" step="0.01" defaultValue={rounds[round][type]??0}
-                onChange={e=>updateRate(round,type,e.target.value)}
-                style={{width:90,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none",textAlign:"right"}} />
+              <input key={round+"_"+type+"_"+formKey} type="number" step="0.01" inputMode="decimal" defaultValue={rounds[round][type]??0}
+                onChange={e=>updateRate(round,type,e.target.value)} style={inp} />
             </div>
           ))}
         </div>
       ))}
 
-      <div onClick={addRound} style={{background:S.panel,border:"1px dashed "+S.cyan+"66",color:S.cyan,padding:"12px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center",marginBottom:8}}>+ Add Round</div>
-      <div style={{fontSize:11,color:S.muted,textAlign:"center"}}>Changes save instantly and apply to new entries</div>
+      <div style={{fontSize:11,color:S.muted,textAlign:"center"}}>Changes save instantly and apply to every saved day</div>
     </>);
   }
 
   // HOME
   if (view==="home") return wrap(<>
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-      <img alt="LBP" src="data:image/jpeg;base64,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" style={{width:30,height:30,borderRadius:6}} />
+    <div style={{position:"sticky",top:0,zIndex:50,background:S.bg,display:"flex",alignItems:"center",gap:10,paddingTop:6,paddingBottom:12,marginBottom:14,borderBottom:"1px solid "+S.border}}>
+      <img alt="LBP" src={LOGO} style={{width:30,height:30,borderRadius:6}} />
       <span style={{fontWeight:800,fontSize:18,letterSpacing:0.3}}>LBP Delivery Tracker</span>
-    </div>
-    <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
-      <span style={{fontSize:11,color:S.muted}}>Text</span>
-      <div onClick={()=>setFontScale(f=>Math.max(0.8,Math.round((f-0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:36,height:32,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>−</div>
-      <div onClick={()=>setFontScale(f=>Math.min(1.6,Math.round((f+0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:36,height:32,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>+</div>
-      <div onClick={()=>setLight(l=>!l)} style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"7px 0",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:600,textAlign:"center"}}>{light?"🌙 Dark mode":"☀ Light mode"}</div>
-    </div>
-    <div style={{display:"flex",gap:8,marginBottom:14}}>
-      <Btn onClick={()=>setView("add_period")} style={{flex:1}}>+ NEW PERIOD</Btn>
-      <div onClick={exportData} style={{background:S.green,color:"#000",padding:"11px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap"}}>⬇ Backup</div>
-      <label style={{background:S.cyan,color:"#000",padding:"11px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap"}}>
-        ⬆ Restore<input type="file" accept=".json" style={{display:"none"}} onChange={importData} />
-      </label>
     </div>
     {(() => {
       const noRounds = Object.keys(rateConfig.rounds||{}).length===0;
       return (<>
-        {noRounds && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"10px 14px",marginBottom:10,fontSize:11,color:S.amber}}>⚠ First time? Go to Settings and add your Rounds + rates first</div>}
-        <div style={{display:"flex",gap:8,marginBottom:14}}>
-          <div onClick={()=>setView("settings")} style={{flex:1,background:noRounds?S.amber:S.panel,border:"1px solid "+(noRounds?S.amber:S.border),color:noRounds?"#000":S.text,padding:"11px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center"}}>⚙ Settings — Rounds &amp; Rates</div>
-          <div onClick={()=>setView("help")} style={{background:S.panel,border:"1px solid "+S.border,color:S.cyan,padding:"11px 16px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center"}}>❓ Help</div>
+        {/* Row 1: Rounds & Rates | New Period | Help */}
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <div onClick={()=>setView("settings")} style={{flex:1,background:noRounds?S.amber:S.cyan,color:"#000",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>⚙ Rounds &amp; Rates</div>
+          <div onClick={()=>setView("add_period")} style={{flex:1,background:S.blue,color:"#fff",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>+ New Period</div>
+          <div onClick={()=>setView("help")} style={{background:S.panel,border:"1px solid "+S.border,color:S.cyan,padding:"11px 16px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12.5,textAlign:"center"}}>❓ Help</div>
         </div>
+        {/* Row 2: Text -/+ | Light/Dark | Backup | Restore */}
+        <div style={{display:"flex",gap:6,marginBottom:14,alignItems:"center"}}>
+          <div onClick={()=>setFontScale(f=>Math.max(0.8,Math.round((f-0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>−</div>
+          <div onClick={()=>setFontScale(f=>Math.min(1.6,Math.round((f+0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>+</div>
+          <div onClick={()=>setLight(l=>!l)} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>{light?"🌙":"☀"}</div>
+          <div onClick={exportData} style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"8px 0",borderRadius:5,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap",textAlign:"center"}}>⬇ Backup</div>
+          <label style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"8px 0",borderRadius:5,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap",textAlign:"center"}}>⬆ Restore<input type="file" accept=".json" style={{display:"none"}} onChange={importData} /></label>
+        </div>
+        {noRounds && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:11,color:S.amber}}>⚠ First time? Tap "Rounds &amp; Rates" and add your rounds + rates first</div>}
       </>);
     })()}
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -629,12 +681,18 @@ function App() {
     const s=pStats(activePeriod);
     const durH=Math.floor(s.mins/60),durM=s.mins%60;
     return wrap(<>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:20}}>
-        <div onClick={()=>setView("home")} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer"}}>← back</div>
-        <PeriodNameEditor name={activePeriod.name} onSave={newName=>{
-          const periods=data.periods.map((p,pi)=>pi!==activePi?p:{...p,name:newName});
-          persist({...data,periods}); showToast("Renamed");
-        }} />
+      <div style={{position:"sticky",top:0,zIndex:50,background:S.bg,paddingTop:6,paddingBottom:10,marginBottom:14,borderBottom:"1px solid "+S.border}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+          <img alt="LBP" src={LOGO} style={{width:26,height:26,borderRadius:5}} />
+          <span style={{fontWeight:800,fontSize:15,letterSpacing:0.3}}>LBP Delivery Tracker</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div onClick={()=>setView("home")} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer"}}>← back</div>
+          <PeriodNameEditor name={activePeriod.name} onSave={newName=>{
+            const periods=data.periods.map((p,pi)=>pi!==activePi?p:{...p,name:newName});
+            persist({...data,periods}); showToast("Renamed");
+          }} />
+        </div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
         <Stat label="Manifest" value={s.total} />
@@ -665,22 +723,47 @@ function App() {
         {activePeriod.days.length===0 && <div style={{color:S.muted,fontSize:12,textAlign:"center",padding:24}}>no days yet</div>}
         {activePeriod.days.map((d,i)=>({d,i})).sort((a,b)=>dateKey(b.d.date)-dateKey(a.d.date)).map(({d,i})=>{
           const di=i;
+          const open = expandedDay===di;
           return (
-            <div key={di} style={{background:S.panel,border:"1px solid "+S.border,borderRadius:10,padding:"12px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={{fontWeight:700}}>{d.date}</span>
-                <div style={{display:"flex",gap:6}}>
-                  <div onClick={()=>setView("day_"+di)} style={{background:S.card,color:S.text,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>detail</div>
-                  <div onClick={()=>{if(confirm("Delete?"))deleteDay(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+            <div key={di} style={{background:S.panel,border:"1px solid "+(open?S.cyan+"66":S.border),borderRadius:10,padding:"12px 14px"}}>
+              <div onClick={()=>setExpandedDay(open?null:di)} style={{cursor:"pointer"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontWeight:700}}>{open?"▾ ":"▸ "}{d.date}</span>
+                  <div onClick={(e)=>{e.stopPropagation();if(confirm("Delete?"))deleteDay(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+                </div>
+                <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:12}}>
+                  <span style={{color:S.muted}}>manifest <b style={{color:S.text}}>{d.manifested}</b></span>
+                  <span style={{color:S.green}}>✓{d.successful} ({pct(d.successful,d.manifested)})</span>
+                  <span style={{color:S.amber}}>cf{d.carry_forward}</span>
+                  <span style={{color:S.amber,fontWeight:600}}>{fmt(dayAmount(d,rateConfig))}</span>
+                  {d.distance_miles>0 && <span style={{color:S.cyan}}>{d.distance_miles}mi {d.duration_hours}h{d.duration_minutes}m</span>}
                 </div>
               </div>
-              <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:12}}>
-                <span style={{color:S.muted}}>manifest <b style={{color:S.text}}>{d.manifested}</b></span>
-                <span style={{color:S.green}}>✓{d.successful} ({pct(d.successful,d.manifested)})</span>
-                <span style={{color:S.amber}}>cf{d.carry_forward}</span>
-                <span style={{color:S.amber,fontWeight:600}}>{fmt(dayAmount(d,rateConfig))}</span>
-                {d.distance_miles>0 && <span style={{color:S.cyan}}>{d.distance_miles}mi {d.duration_hours}h{d.duration_minutes}m</span>}
-              </div>
+              {open && (
+                <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+S.border}}>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+                    <Stat label="Collection" value={(d.rounds||[]).reduce((a,r)=>a+(r.parcels?.Collection||0),0)} color={S.cyan} />
+                    {d.distance_miles>0 && <Stat label="Miles" value={d.distance_miles+"mi"} color={S.cyan} />}
+                    {d.duration_hours>0 && <Stat label="Drive" value={d.duration_hours+"h"+d.duration_minutes+"m"} color={S.cyan} />}
+                  </div>
+                  {(d.rounds||[]).map((r,ri)=>{
+                    const live=calcRound(r.round,r.parcels,rateConfig);
+                    return (
+                      <div key={ri} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                          <b>Round {r.round}</b><span style={{color:S.amber}}>{fmt(live.total)}</span>
+                        </div>
+                        {live.lines.filter(l=>l.count>0).map((l,j)=>(
+                          <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:S.muted,marginBottom:3}}>
+                            <span>{l.type}</span>
+                            <span>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -774,8 +857,19 @@ function App() {
   if (view==="confirm" && parsed) {
     let totalAmount=0;
     (parsed.manifests||[]).forEach(m=>{totalAmount+=calcRound(m.round_number,m.parcels,rateConfig).total;});
+    const knownRounds = Object.keys(rateConfig.rounds||{});
+    const hasRate = rn => knownRounds.includes(String(rn));
+    const unknownRounds = (parsed.manifests||[]).map(m=>m.round_number).filter(rn=>!hasRate(rn));
+    const blockSave = unknownRounds.length>0;
     return wrap(<>
       {topBar("CONFIRM DATA", ()=>setView("paste"))}
+      {blockSave && (
+        <div style={{background:S.red+"18",border:"1px solid "+S.red+"66",borderRadius:8,padding:"12px 14px",marginBottom:12,fontSize:12.5,lineHeight:1.6}}>
+          <div style={{color:S.red,fontWeight:700,marginBottom:4}}>⚠ Round not set up: {unknownRounds.join(", ")}</div>
+          <div style={{color:S.text}}>This round has no rate, so pay shows £0.00. Check the number is correct, or add it in Settings first.</div>
+          {knownRounds.length>0 && <div style={{color:S.muted,marginTop:6}}>Your rounds in Settings: {knownRounds.join(", ")}</div>}
+        </div>
+      )}
       <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:12}}>
         <div style={{display:"flex",gap:20,flexWrap:"wrap",fontSize:13}}>
           <span>📅 <b>{parsed.date}</b></span>
@@ -791,6 +885,7 @@ function App() {
               <b style={{fontSize:14}}>Round {m.round_number}</b>
               <span style={{color:S.amber,fontWeight:700}}>{fmt(total)}</span>
             </div>
+            {!hasRate(m.round_number) && <div style={{color:S.red,fontSize:11,marginBottom:8}}>⚠ No rate set for this round</div>}
             {lines.filter(l=>l.count>0).map((l,j)=>(
               <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
                 <span style={{color:S.text}}>{l.type} <span style={{color:S.cyan}}>×{l.count}</span></span>
@@ -833,7 +928,12 @@ function App() {
         <span style={{color:S.muted}}>Total Earnings</span>
         <span style={{color:S.amber,fontWeight:700,fontSize:20}}>{fmt(totalAmount)}</span>
       </div>
-      <Btn color="green" onClick={saveDay}>✓ SAVE</Btn>
+      {blockSave
+        ? <>
+            <div style={{background:S.panel,border:"1px solid "+S.border,opacity:0.5,color:S.muted,padding:"13px 0",borderRadius:7,textAlign:"center",fontWeight:700,fontSize:14,marginBottom:10}}>✓ SAVE (fix round first)</div>
+            <div onClick={()=>setView("settings")} style={{background:S.cyan,color:"#000",padding:"12px 0",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:13,textAlign:"center"}}>⚙ Go to Settings to add the round</div>
+          </>
+        : <Btn color="green" onClick={saveDay}>✓ SAVE</Btn>}
     </>);
   }
 
