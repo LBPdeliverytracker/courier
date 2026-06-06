@@ -155,31 +155,6 @@ function parseText(rawText) {
   return result;
 }
 
-async function scanImages(files) {
-  const toBase64 = file => new Promise((res,rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result.split(",")[1]);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-  const images = await Promise.all(Array.from(files).map(async f => ({
-    type:"image", source:{type:"base64", media_type:f.type||"image/jpeg", data: await toBase64(f)}
-  })));
-  const prompt = `Extract delivery data from these courier app screenshots. Return ONLY valid JSON, no markdown.
-Schema:
-{"date":"DD/MM/YYYY","distance_miles":0,"duration_hours":0,"duration_minutes":0,"manifests":[{"round_number":123456,"parcels":{"Small Packet":0,"Packet":0,"Standard":0,"Postable":0,"Heavy":0,"Heavy/Large":0,"Hanging Garment":0,"Collection":0}}],"day_summary":{"successful":0,"carry_forward":0,"cannot_deliver":0}}
-Rules: extract all Round Numbers and parcel counts; distance/duration from "estimated distance" line; day_summary from "Successful deliveries" line; date from "Manifest Date" field; set missing fields to 0; day_summary is null if no Day Summary screen present.`;
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST",
-    headers:{"Content-Type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:[...images,{type:"text",text:prompt}]}]})
-  });
-  if(!resp.ok) throw new Error("API "+resp.status+": "+(await resp.text()).slice(0,200));
-  const data = await resp.json();
-  const raw = data.content?.find(b=>b.type==="text")?.text||"";
-  return JSON.parse(raw.replace(/```json|```/g,"").trim());
-}
-
 const fmt = v => "£" + Number(v||0).toFixed(2);
 const pct = (a,b) => b > 0 ? ((a/b)*100).toFixed(1)+"%" : "—";
 const dateKey = (s) => { const m=(s||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? parseInt(m[3])*10000+parseInt(m[2])*100+parseInt(m[1]) : 0; };
@@ -238,8 +213,6 @@ function App() {
   const [parseError, setParseError] = useState(null);
   const [parsed, setParsed] = useState(null);
   const [periodName, setPeriodName] = useState("");
-  const [scanning, setScanning] = useState(false);
-  const [scanError, setScanError] = useState(null);
   const [rateConfig, setRateConfig] = useState(() => loadRates());
   const [formKey, setFormKey] = useState(0);
   const [light, setLight] = useState(() => { try { return localStorage.getItem("dt_light")==="1"; } catch { return false; } });
@@ -345,17 +318,6 @@ function App() {
     setParseError(null); setParsed(null);
     try { const r=parseText(pasteText); setParsed(r); setView("confirm"); }
     catch(e) { setParseError("Parse failed: "+e.message); }
-  }
-
-  async function handleScan(files) {
-    if(!files||!files.length) return;
-    setScanning(true); setScanError(null); setParsed(null);
-    try {
-      const result = await scanImages(files);
-      setParsed(result);
-      setView("confirm");
-    } catch(e) { setScanError("Scan failed: "+e.message); }
-    setScanning(false);
   }
 
   function saveDay() {
