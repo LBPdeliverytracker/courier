@@ -270,6 +270,28 @@ function App() {
   }, [light]);
   useEffect(() => { try { localStorage.setItem("dt_font", String(fontScale)); } catch {} }, [fontScale]);
 
+  // Make the phone's back button navigate inside the app instead of closing the tab.
+  // Whenever we leave "home", push a history entry; on back (popstate) go to home.
+  useEffect(() => {
+    const onPop = () => {
+      setView(v => {
+        if (v === "home") return "home";
+        // detail views step back to their parent first
+        if (v.startsWith("day_")) return "period";
+        if (v === "confirm") return "paste";
+        return "home";
+      });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    if (view !== "home") {
+      try { window.history.pushState({ view }, ""); } catch {}
+    }
+  }, [view]);
+
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),2500); };
 
   const persist = useCallback(nd => {
