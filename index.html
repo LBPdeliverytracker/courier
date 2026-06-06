@@ -30,14 +30,14 @@ input[type=text]:focus { border-color: #3b82f6; }
 const { useState, useEffect, useCallback } = React;
 
 const DARK = {
-  bg:"#0a0c12", panel:"#13161f", card:"#1a1e2e", border:"#252a3d",
-  blue:"#3b82f6", green:"#22c55e", red:"#ef4444", amber:"#f59e0b",
-  text:"#f1f3f9", muted:"#6b7280", cyan:"#06b6d4",
+  bg:"#16203A", panel:"#1E2D4A", card:"#26334F", border:"#36456A",
+  blue:"#E8B04A", green:"#4CAF82", red:"#E0664F", amber:"#E8B04A",
+  text:"#F4F1EA", muted:"#8A9BB8", cyan:"#E8B04A",
 };
 const LIGHT = {
-  bg:"#f5f6fa", panel:"#ffffff", card:"#eef0f6", border:"#d3d8e4",
-  blue:"#2563eb", green:"#16a34a", red:"#dc2626", amber:"#b45309",
-  text:"#11131a", muted:"#6b7280", cyan:"#0891b2",
+  bg:"#F4F1EA", panel:"#FFFFFF", card:"#EDE8DC", border:"#DED9CB",
+  blue:"#D89A2E", green:"#2E9466", red:"#C8503B", amber:"#D89A2E",
+  text:"#16203A", muted:"#5A6E8A", cyan:"#D89A2E",
 };
 const S = {...DARK};
 function applyTheme(light) { Object.assign(S, light ? LIGHT : DARK); }
@@ -142,11 +142,13 @@ function parseText(rawText) {
   const succM = text.match(/Successful deliveries\s*:?\s*(\d+)/i);
   const cfM = text.match(/Carry forward\s*:?\s*(\d+)/i);
   const failM = text.match(/Cannot deliver\s*:?\s*(\d+)/i);
+  const succColM = text.match(/Successful collections?\s*:?\s*(\d+)/i);
   if (succM || cfM || failM) {
     result.day_summary = {
       successful: succM ? parseInt(succM[1]) : 0,
       carry_forward: cfM ? parseInt(cfM[1]) : 0,
       cannot_deliver: failM ? parseInt(failM[1]) : 0,
+      successful_collections: succColM ? parseInt(succColM[1]) : 0,
     };
   }
   if (result.manifests.length === 0) throw new Error("No Round Numbers found.");
@@ -189,9 +191,9 @@ function dayAmount(d, rateConfig) {
 }
 
 function Btn({ children, onClick, color, style }) {
-  const bg = color==="red"?S.red:color==="green"?S.green:color==="cyan"?S.cyan:S.blue;
-  const tc = (color==="cyan"||color==="green")?"#000":"#fff";
-  return <div onClick={onClick} style={{ background:bg, color:tc, padding:"11px 0", borderRadius:6, textAlign:"center", cursor:"pointer", fontWeight:600, fontSize:13, userSelect:"none", ...style }}>{children}</div>;
+  const bg = color==="red"?S.red:color==="green"?S.amber:color==="cyan"?S.amber:S.amber;
+  const tc = color==="red"?"#fff":"#16203A";
+  return <div onClick={onClick} style={{ background:bg, color:tc, padding:"11px 0", borderRadius:6, textAlign:"center", cursor:"pointer", fontWeight:700, fontSize:13, userSelect:"none", ...style }}>{children}</div>;
 }
 
 function Stat({ label, value, color }) {
@@ -247,6 +249,40 @@ function App() {
   const [manualDist, setManualDist] = useState({miles:"",hours:""});
   const [fontScale, setFontScale] = useState(() => { try { return parseFloat(localStorage.getItem("dt_font"))||1; } catch { return 1; } });
   const [expandedDay, setExpandedDay] = useState(null);
+  const [claimRounds, setClaimRounds] = useState([]);
+  const [claimCopied, setClaimCopied] = useState({});
+
+  function initClaim() {
+    const knownRounds = Object.keys(rateConfig.rounds||{});
+    const blank = {};
+    PARCEL_TYPE_LIST.forEach(t => blank[t] = "");
+    setClaimRounds([{
+      round: knownRounds.length===1 ? knownRounds[0] : "",
+      period: "",
+      counts: {...blank},
+      paidAmount: "",
+    }]);
+    setClaimCopied({});
+  }
+
+  function buildClaimText(cr) {
+    const rn = (cr.round||"").trim();
+    const pn = (cr.period||"").trim();
+    const parcels = {};
+    PARCEL_TYPE_LIST.forEach(t => { parcels[t] = parseInt(cr.counts[t])||0; });
+    const { total: calc, lines } = calcRound(parseInt(rn)||rn, parcels, rateConfig);
+    const parts = [];
+    PARCEL_TYPE_LIST.forEach(t => {
+      const c = parseInt(cr.counts[t])||0;
+      if (!c) return;
+      parts.push(t + " \u00d7" + c);
+    });
+    const paid = Math.round((parseFloat(cr.paidAmount)||0)*100)/100;
+    const shortfall = Math.round((calc - paid)*100)/100;
+    const parcelStr = parts.join(", ");
+    const text = "Hi, I've checked round " + rn + " on period " + pn + ". Based on the parcels delivered \u2014 " + parcelStr + " \u2014 at the published rates, the total should be \u00a3" + calc.toFixed(2) + ". However, the amount paid was \u00a3" + paid.toFixed(2) + ", a shortfall of \u00a3" + shortfall.toFixed(2) + ". Could you please review and correct this payment? Thank you.";
+    return { text, calc, paid, shortfall };
+  }
 
   // keep palette + body bg in sync with theme
   applyTheme(light);
@@ -290,17 +326,18 @@ function App() {
   const activePeriod = data.periods[activePi];
 
   function pStats(p) {
-    let total=0,success=0,failed=0,cf=0,amount=0,miles=0,mins=0;
+    let total=0,success=0,failed=0,cf=0,amount=0,miles=0,mins=0,collections=0;
     const types={};
     (p.days||[]).forEach(d => {
       total+=d.manifested||0; success+=d.successful||0; failed+=d.cannot_deliver||0;
       cf+=d.carry_forward||0; amount+=dayAmount(d,rateConfig); miles+=d.distance_miles||0;
       mins+=(d.duration_hours||0)*60+(d.duration_minutes||0);
+      collections+=d.successful_collections||0;
       (d.rounds||[]).forEach(r => {
         Object.entries(r.parcels||{}).forEach(([t,c]) => { if(c>0) types[t]=(types[t]||0)+c; });
       });
     });
-    return {total,success,failed,cf,amount,miles:Math.round(miles*10)/10,mins,types};
+    return {total,success,failed,cf,amount,miles:Math.round(miles*10)/10,mins,types,collections};
   }
 
   function doParse() {
@@ -336,6 +373,7 @@ function App() {
       successful:parsed.day_summary?.successful||0,
       carry_forward:parsed.day_summary?.carry_forward||0,
       cannot_deliver:parsed.day_summary?.cannot_deliver||0,
+      successful_collections:parsed.day_summary?.successful_collections||0,
       distance_miles:parsed.distance_miles||0,
       duration_hours:parsed.duration_hours||0,
       duration_minutes:parsed.duration_minutes||0,
@@ -527,6 +565,16 @@ function App() {
         <div style={h}>7 · Display options</div>
         <div style={p}>Use <Key>Text − / +</Key> to make everything bigger or smaller, and the <Key>Light / Dark</Key> toggle to switch theme. Your choice is remembered.</div>
       </div>
+
+      <div style={card}>
+        <div style={h}>8 · About the Check Pay figures</div>
+        <div style={p}>The amounts shown in <Key>🧾 Check Pay</Key> are <Hi>guidelines only</Hi>. Your actual pay may differ because of factors outside this app's knowledge:</div>
+        <div style={{...mut,marginBottom:5}}>• <b>Unmanifested parcels</b> — items delivered that never appeared on your manifest</div>
+        <div style={{...mut,marginBottom:5}}>• <b>Wrong banding</b> — a parcel recorded under the wrong size category by the depot</div>
+        <div style={{...mut,marginBottom:5}}>• <b>Returns &amp; failed deliveries</b> — parcels returned to depot or marked as failed after scanning</div>
+        <div style={{...mut,marginBottom:10}}>• <b>Customer not available (CNA) deductions</b> — these may affect your totals depending on your agreement</div>
+        <div style={p}>If you believe there is a genuine shortfall after accounting for the above, use the claim text generated by the app as a <Hi>starting point</Hi> and raise it through the <Hi>official disputes or pay query process</Hi>. This app is not affiliated with any courier company and cannot guarantee the accuracy of calculated figures.</div>
+      </div>
     </>);
   }
 
@@ -622,19 +670,21 @@ function App() {
       const noRounds = Object.keys(rateConfig.rounds||{}).length===0;
       return (<>
         {/* Row 1: Rounds & Rates | New Period | Help */}
-        <div style={{display:"flex",gap:8,marginBottom:10}}>
-          <div onClick={()=>setView("settings")} style={{flex:1,background:noRounds?S.amber:S.cyan,color:"#000",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>⚙ Rounds &amp; Rates</div>
-          <div onClick={()=>setView("add_period")} style={{flex:1,background:S.blue,color:"#fff",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>+ New Period</div>
-          <div onClick={()=>setView("help")} style={{background:S.panel,border:"1px solid "+S.border,color:S.cyan,padding:"11px 16px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12.5,textAlign:"center"}}>❓ Help</div>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <div onClick={()=>setView("settings")} style={{flex:1,background:noRounds?S.amber:S.card,border:"1px solid "+(noRounds?S.amber:S.border),color:noRounds?"#16203A":S.text,padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>⚙ Rounds &amp; Rates</div>
+          <div onClick={()=>setView("add_period")} style={{flex:1,background:S.amber,color:"#16203A",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>+ New Period</div>
+          <div onClick={()=>setView("help")} style={{background:"transparent",border:"1px solid "+S.amber+"88",color:S.amber,padding:"11px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center"}}>❓</div>
         </div>
-        {/* Row 2: Text -/+ | Light/Dark | Backup | Restore */}
-        <div style={{display:"flex",gap:6,marginBottom:14,alignItems:"center"}}>
+        {/* Row 2: utility */}
+        <div style={{display:"flex",gap:6,marginBottom:8,alignItems:"center"}}>
           <div onClick={()=>setFontScale(f=>Math.max(0.8,Math.round((f-0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>−</div>
           <div onClick={()=>setFontScale(f=>Math.min(1.6,Math.round((f+0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>+</div>
           <div onClick={()=>setLight(l=>!l)} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>{light?"🌙":"☀"}</div>
           <div onClick={exportData} style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"8px 0",borderRadius:5,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap",textAlign:"center"}}>⬇ Backup</div>
           <label style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"8px 0",borderRadius:5,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap",textAlign:"center"}}>⬆ Restore<input type="file" accept=".json" style={{display:"none"}} onChange={importData} /></label>
         </div>
+        {/* Row 3: Check Payslip — secondary */}
+        <div onClick={()=>{initClaim();setView("claim");}} style={{background:"transparent",border:"1px solid "+S.amber+"88",color:S.amber,padding:"8px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,textAlign:"center",marginBottom:14,letterSpacing:0.2}}>Check Payslip</div>
         {noRounds && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:11,color:S.amber}}>⚠ First time? Tap "Rounds &amp; Rates" and add your rounds + rates first</div>}
       </>);
     })()}
@@ -698,7 +748,7 @@ function App() {
         <Stat label="Manifest" value={s.total} />
         <Stat label="Delivered" value={s.success} color={S.green} />
         <Stat label="CF" value={s.cf} color={S.amber} />
-        <Stat label="Collection" value={s.types["Collection"]||0} color={S.cyan} />
+        <Stat label="Collection" value={s.collections} color={S.cyan} />
         <Stat label="Earned" value={fmt(s.amount)} color={S.amber} />
         <Stat label="Miles" value={s.miles+"mi"} color={S.cyan} />
         <Stat label="Drive" value={durH+"h"+durM+"m"} color={S.cyan} />
@@ -742,7 +792,7 @@ function App() {
               {open && (
                 <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+S.border}}>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-                    <Stat label="Collection" value={(d.rounds||[]).reduce((a,r)=>a+(r.parcels?.Collection||0),0)} color={S.cyan} />
+                    <Stat label="Collection" value={d.successful_collections||0} color={S.cyan} />
                     {d.distance_miles>0 && <Stat label="Miles" value={d.distance_miles+"mi"} color={S.cyan} />}
                     {d.duration_hours>0 && <Stat label="Drive" value={d.duration_hours+"h"+d.duration_minutes+"m"} color={S.cyan} />}
                   </div>
@@ -839,6 +889,110 @@ function App() {
     </>);
   }
 
+  // CLAIM CHECKER VIEW
+  if (view==="claim") {
+    const knownRounds = Object.keys(rateConfig.rounds||{});
+    const inp = {width:110,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none",textAlign:"right"};
+    const addClaimRound = () => {
+      const blank = {}; PARCEL_TYPE_LIST.forEach(t=>blank[t]="");
+      setClaimRounds(L=>[...L,{round:"",period:"",counts:{...blank},paidAmount:""}]);
+    };
+    const removeClaimRound = (i) => setClaimRounds(L=>L.filter((_,idx)=>idx!==i));
+    const updateClaim = (i,field,val) => setClaimRounds(L=>L.map((r,idx)=>idx===i?{...r,[field]:val}:r));
+    const updateClaimCount = (i,type,val) => setClaimRounds(L=>L.map((r,idx)=>idx===i?{...r,counts:{...r.counts,[type]:val}}:r));
+
+    return wrap(<>
+      {topBar("🧾 Check Pay", ()=>setView("home"))}
+
+      <div style={{background:S.amber+"18",border:"1px solid "+S.amber+"55",borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12,lineHeight:1.6}}>
+        <b style={{color:S.amber}}>⚠ Check each round separately — do not combine rounds in one claim.</b>
+        <div style={{color:S.muted,marginTop:4}}>Fill in one card per round. When a shortfall is found, copy the message and send it through the official channel.</div>
+      </div>
+
+      {claimRounds.map((cr,i)=>{
+        const rn = (cr.round||"").trim();
+        const hasRoundRate = knownRounds.includes(rn);
+        const canCalc = rn && hasRoundRate && (cr.period||"").trim() && parseFloat(cr.paidAmount)>=0;
+        let result = null;
+        if (canCalc) result = buildClaimText(cr);
+        const copied = claimCopied[i];
+
+        return (
+          <div key={i} style={{background:S.card,border:"1px solid "+(result&&result.shortfall>0?S.red+"88":S.border),borderRadius:8,padding:"14px",marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <b style={{color:S.cyan,fontSize:14}}>Round {rn||"—"}</b>
+              {claimRounds.length>1 && <div onClick={()=>removeClaimRound(i)} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>remove</div>}
+            </div>
+
+            <div style={{display:"flex",gap:10,marginBottom:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:S.muted,marginBottom:4}}>Round number</div>
+                <select value={rn} onChange={e=>updateClaim(i,"round",e.target.value)}
+                  style={{width:"100%",background:S.bg,border:"1px solid "+(hasRoundRate||!rn?S.border:S.red),color:rn?S.text:S.muted,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none"}}>
+                  <option value="">-- select --</option>
+                  {knownRounds.map(r=><option key={r} value={r}>{r}</option>)}
+                </select>
+                {rn && !hasRoundRate && <div style={{color:S.red,fontSize:10,marginTop:3}}>No rate set — add in Settings</div>}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:S.muted,marginBottom:4}}>Period number *</div>
+                <input type="text" inputMode="numeric" value={cr.period} onChange={e=>updateClaim(i,"period",e.target.value)} placeholder="e.g. 14"
+                  style={{width:"100%",background:S.bg,border:"1px solid "+((cr.period||"").trim()?S.border:S.amber+"99"),color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none"}} />
+              </div>
+            </div>
+
+            <div style={{fontSize:11,color:S.muted,marginBottom:8,fontWeight:600}}>Parcel counts from payslip:</div>
+            {PARCEL_TYPE_LIST.map(type=>(
+              <div key={type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:7}}>
+                <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
+                <input type="number" min="0" value={cr.counts[type]??""} onChange={e=>updateClaimCount(i,type,e.target.value)} placeholder="0" style={inp} />
+              </div>
+            ))}
+
+            <div style={{display:"flex",alignItems:"center",gap:10,marginTop:10,paddingTop:10,borderTop:"1px solid "+S.border}}>
+              <span style={{flex:1,fontSize:13,color:S.text,fontWeight:700}}>Amount paid (£) *</span>
+              <input type="number" min="0" step="0.01" value={cr.paidAmount} onChange={e=>updateClaim(i,"paidAmount",e.target.value)} placeholder="0.00" style={inp} />
+            </div>
+
+            {result && (
+              <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+S.border}}>
+                <div style={{display:"flex",gap:12,marginBottom:10,fontSize:13}}>
+                  <div style={{flex:1,background:S.bg,border:"1px solid "+S.border,borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:S.muted,marginBottom:2}}>SHOULD BE</div>
+                    <div style={{color:S.green,fontWeight:700}}>{fmt(result.calc)}</div>
+                  </div>
+                  <div style={{flex:1,background:S.bg,border:"1px solid "+S.border,borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:S.muted,marginBottom:2}}>PAID</div>
+                    <div style={{color:S.text,fontWeight:700}}>{fmt(result.paid)}</div>
+                  </div>
+                  <div style={{flex:1,background:result.shortfall>0?S.red+"22":S.green+"22",border:"1px solid "+(result.shortfall>0?S.red+"66":S.green+"44"),borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:S.muted,marginBottom:2}}>SHORTFALL</div>
+                    <div style={{color:result.shortfall>0?S.red:S.green,fontWeight:700}}>{result.shortfall>0?fmt(result.shortfall):"None ✓"}</div>
+                  </div>
+                </div>
+                {result.shortfall>0 && (
+                  <>
+                    <div style={{background:S.bg,border:"1px solid "+S.border,borderRadius:6,padding:"10px",fontSize:11.5,color:S.muted,lineHeight:1.6,marginBottom:8,whiteSpace:"pre-wrap"}}>{result.text}</div>
+                    <div onClick={()=>{navigator.clipboard.writeText(result.text).then(()=>{setClaimCopied(c=>({...c,[i]:true}));setTimeout(()=>setClaimCopied(c=>({...c,[i]:false})),2000);});}}
+                      style={{background:copied?S.green:S.blue,color:copied?"#000":"#fff",padding:"10px 0",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13,textAlign:"center"}}>
+                      {copied?"✓ Copied!":"📋 Copy Claim Text"}
+                    </div>
+                  </>
+                )}
+                {result.shortfall<=0 && result.calc>0 && (
+                  <div style={{background:S.green+"18",border:"1px solid "+S.green+"44",borderRadius:6,padding:"10px",fontSize:12,color:S.green,textAlign:"center"}}>✓ Pay looks correct — no shortfall found.</div>
+                )}
+              </div>
+            )}
+            {!(cr.period||"").trim() && <div style={{marginTop:8,fontSize:10.5,color:S.amber}}>* Enter period number to generate claim text.</div>}
+          </div>
+        );
+      })}
+
+      <div onClick={addClaimRound} style={{background:S.panel,border:"1px dashed "+S.cyan+"66",color:S.cyan,padding:"12px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center",marginBottom:14}}>+ Add Another Round</div>
+    </>);
+  }
+
   // PASTE VIEW
   if (view==="paste") return wrap(<>
     {topBar("ADD DAY", ()=>setView("period"))}
@@ -917,10 +1071,13 @@ function App() {
       {parsed.day_summary && (
         <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:12,fontSize:12}}>
           <div style={{fontWeight:700,marginBottom:6}}>Day Summary</div>
-          <div style={{display:"flex",gap:20}}>
+          <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
             <span style={{color:S.green}}>✓ {parsed.day_summary.successful}</span>
             <span style={{color:S.amber}}>CF {parsed.day_summary.carry_forward}</span>
             <span style={{color:S.red}}>✗ {parsed.day_summary.cannot_deliver}</span>
+            {parsed.day_summary.successful_collections>0 && (
+              <span style={{color:S.cyan}}>📦 Collections {parsed.day_summary.successful_collections}</span>
+            )}
           </div>
         </div>
       )}
@@ -948,7 +1105,7 @@ function App() {
         <Stat label="Manifest" value={d.manifested} />
         <Stat label="Delivered" value={d.successful} color={S.green} />
         <Stat label="CF" value={d.carry_forward} color={S.amber} />
-        <Stat label="Collection" value={(d.rounds||[]).reduce((a,r)=>a+(r.parcels?.Collection||0),0)} color={S.cyan} />
+        <Stat label="Collection" value={d.successful_collections||0} color={S.cyan} />
         <Stat label="Earned" value={fmt(dayAmount(d,rateConfig))} color={S.amber} />
         {d.distance_miles>0 && <Stat label="Miles" value={d.distance_miles+"mi"} color={S.cyan} />}
         {d.duration_hours>0 && <Stat label="Drive" value={d.duration_hours+"h"+d.duration_minutes+"m"} color={S.cyan} />}
