@@ -567,8 +567,8 @@ function App() {
       </div>
 
       <div style={card}>
-        <div style={h}>8 · About the Check Pay figures</div>
-        <div style={p}>The amounts shown in <Key>🧾 Check Pay</Key> are <Hi>guidelines only</Hi>. Your actual pay may differ because of factors outside this app's knowledge:</div>
+        <div style={h}>8 · About the Invoice Checker figures</div>
+        <div style={p}>The amounts shown in <Key>🧾 Invoice Checker</Key> are <Hi>guidelines only</Hi>. Your actual pay may differ because of factors outside this app's knowledge:</div>
         <div style={{...mut,marginBottom:5}}>• <b>Unmanifested parcels</b> — items delivered that never appeared on your manifest</div>
         <div style={{...mut,marginBottom:5}}>• <b>Wrong banding</b> — a parcel recorded under the wrong size category by the depot</div>
         <div style={{...mut,marginBottom:5}}>• <b>Returns &amp; failed deliveries</b> — parcels returned to depot or marked as failed after scanning</div>
@@ -683,8 +683,8 @@ function App() {
           <div onClick={exportData} style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"8px 0",borderRadius:5,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap",textAlign:"center"}}>⬇ Backup</div>
           <label style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"8px 0",borderRadius:5,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap",textAlign:"center"}}>⬆ Restore<input type="file" accept=".json" style={{display:"none"}} onChange={importData} /></label>
         </div>
-        {/* Row 3: Check Payslip — secondary */}
-        <div onClick={()=>{initClaim();setView("claim");}} style={{background:"transparent",border:"1px solid "+S.amber+"88",color:S.amber,padding:"8px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,textAlign:"center",marginBottom:14,letterSpacing:0.2}}>Check Payslip</div>
+        {/* Row 3: Invoice Checker — secondary */}
+        <div onClick={()=>{initClaim();setView("claim");}} style={{background:"transparent",border:"1px solid "+S.amber+"88",color:S.amber,padding:"8px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,textAlign:"center",marginBottom:14,letterSpacing:0.2}}>Invoice Checker</div>
         {noRounds && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:11,color:S.amber}}>⚠ First time? Tap "Rounds &amp; Rates" and add your rounds + rates first</div>}
       </>);
     })()}
@@ -902,7 +902,7 @@ function App() {
     const updateClaimCount = (i,type,val) => setClaimRounds(L=>L.map((r,idx)=>idx===i?{...r,counts:{...r.counts,[type]:val}}:r));
 
     return wrap(<>
-      {topBar("🧾 Check Pay", ()=>setView("home"))}
+      {topBar("🧾 Invoice Checker", ()=>setView("home"))}
 
       <div style={{background:S.amber+"18",border:"1px solid "+S.amber+"55",borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12,lineHeight:1.6}}>
         <b style={{color:S.amber}}>⚠ Check each round separately — do not combine rounds in one claim.</b>
@@ -941,7 +941,7 @@ function App() {
               </div>
             </div>
 
-            <div style={{fontSize:11,color:S.muted,marginBottom:8,fontWeight:600}}>Parcel counts from payslip:</div>
+            <div style={{fontSize:11,color:S.muted,marginBottom:8,fontWeight:600}}>Parcel counts from invoice:</div>
             {PARCEL_TYPE_LIST.map(type=>(
               <div key={type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:7}}>
                 <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
