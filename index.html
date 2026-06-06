@@ -177,9 +177,9 @@ function Btn({ children, onClick, color, style }) {
 
 function Stat({ label, value, color }) {
   return (
-    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:8, padding:"10px 12px", flex:1, minWidth:80 }}>
-      <div style={{ fontSize:9, color:S.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>{label}</div>
-      <div style={{ fontSize:18, fontWeight:700, color:color||S.text }}>{value}</div>
+    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:8, padding:"10px 12px", flex:"1 1 90px", minWidth:0 }}>
+      <div style={{ fontSize:9, color:S.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{label}</div>
+      <div style={{ fontSize:18, fontWeight:700, color:color||S.text, overflowWrap:"anywhere" }}>{value}</div>
     </div>
   );
 }
@@ -269,28 +269,6 @@ function App() {
     document.body.style.color = S.text;
   }, [light]);
   useEffect(() => { try { localStorage.setItem("dt_font", String(fontScale)); } catch {} }, [fontScale]);
-
-  // Make the phone's back button navigate inside the app instead of closing the tab.
-  // Whenever we leave "home", push a history entry; on back (popstate) go to home.
-  useEffect(() => {
-    const onPop = () => {
-      setView(v => {
-        if (v === "home") return "home";
-        // detail views step back to their parent first
-        if (v.startsWith("day_")) return "period";
-        if (v === "confirm") return "paste";
-        return "home";
-      });
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-
-  useEffect(() => {
-    if (view !== "home") {
-      try { window.history.pushState({ view }, ""); } catch {}
-    }
-  }, [view]);
 
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),2500); };
 
@@ -501,109 +479,74 @@ function App() {
       {topBar("❓ Help & Guide", ()=>setView("home"))}
 
       <a href="mailto:lbpdeliverytracker@outlook.com?subject=Delivery%20Tracker%20-%20Help" style={{textDecoration:"none"}}>
-        <div style={{background:S.cyan+"18",border:"1px solid "+S.cyan+"55",borderRadius:8,padding:"12px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+        <div style={{background:S.cyan+"18",border:"1px solid "+S.cyan+"55",borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18}}>📧</span>
-          <div>
-            <div style={{fontWeight:700,color:S.cyan,fontSize:13}}>Need help? Contact me</div>
-            <div style={{fontSize:11,color:S.muted}}>Tap to email lbpdeliverytracker@outlook.com</div>
-          </div>
+          <div style={{fontWeight:700,color:S.cyan,fontSize:12.5}}>Need help? Tap to email me</div>
         </div>
       </a>
 
-      <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"55",borderRadius:8,padding:"14px",marginBottom:12}}>
-        <div style={{fontWeight:700,color:S.amber,fontSize:14,marginBottom:8}}>📸 Before you start — take 3 screenshots</div>
-        <div style={{fontSize:12.5,color:S.text,lineHeight:1.7,marginBottom:10}}>During a normal working day you'll capture <Hi>3 screens</Hi> from the courier app. You'll copy the text from these and paste it into this app:</div>
-        <div style={{...mut,marginBottom:6}}><Hi>① Manifest Summary</Hi> — taken before you start (round number, date, parcel types)</div>
-        <img alt="Manifest Summary example" src={SHOT_MANIFEST} style={{width:"100%",maxWidth:240,display:"block",margin:"6px auto 12px",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...mut,marginBottom:6}}><Hi>② Route popup</Hi> — the distance &amp; duration line</div>
-        <img alt="Route popup example" src={SHOT_ROUTE} style={{width:"100%",maxWidth:240,display:"block",margin:"6px auto 12px",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...mut,marginBottom:6}}><Hi>③ Day Summary</Hi> — taken at end of day (deliveries, collections, carry forward)</div>
-        <img alt="Day Summary example" src={SHOT_DAY} style={{width:"100%",maxWidth:240,display:"block",margin:"6px auto 12px",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{fontSize:11.5,color:S.muted,lineHeight:1.6}}>Steps 1–3 below walk you through it. You only copy the <Hi>text</Hi> — the screenshots are just so you remember which screens to grab.</div>
+      <div style={card}>
+        <div style={h}>📸 1 · Take 3 screenshots each day</div>
+        <div style={p}>Grab these 3 screens from the Evri app — you'll copy their text later:</div>
+        <div style={{...p,marginTop:8,marginBottom:0}}><Hi>① Manifest Summary</Hi> — <i>before you start</i></div>
+        <img alt="Manifest Summary example" src={SHOT_MANIFEST} style={{width:"100%",maxWidth:230,display:"block",margin:"6px auto 14px",borderRadius:8,border:"1px solid "+S.border}} />
+        <div style={{...p,marginBottom:0}}><Hi>② Route popup</Hi> — the distance &amp; duration line</div>
+        <img alt="Route popup example" src={SHOT_ROUTE} style={{width:"100%",maxWidth:230,display:"block",margin:"6px auto 14px",borderRadius:8,border:"1px solid "+S.border}} />
+        <div style={{...p,marginBottom:0}}><Hi>③ Day Summary</Hi> — <i>end of day</i></div>
+        <img alt="Day Summary example" src={SHOT_DAY} style={{width:"100%",maxWidth:230,display:"block",margin:"6px auto 4px",borderRadius:8,border:"1px solid "+S.border}} />
       </div>
 
       <div style={card}>
-        <div style={h}>1 · First-time setup</div>
-        <div style={p}>Go to <Key>⚙ Settings</Key> and tap <Key>+ Add Round</Key>. Enter your Round Number, then just type your <Hi>Standard Parcel rate</Hi> in the green box — <Hi>every other parcel type fills in automatically</Hi> from Evri's pay bands. You can still edit any of them. Repeat for each round you run.</div>
+        <div style={h}>⚙️ 2 · Set rounds &amp; rates <span style={{color:S.muted,fontWeight:400,fontSize:12}}>(once)</span></div>
+        <div style={p}><Key>⚙ Settings</Key> → <Key>+ Add Round</Key>. Enter the <Hi>Round Number</Hi> and your <Hi>Standard rate</Hi>.</div>
+        <div style={p}>→ everything else auto-fills. Repeat for each round.</div>
       </div>
 
       <div style={card}>
-        <div style={h}>2 · Create a Period</div>
-        <div style={p}>On the home screen tap <Key>+ New Period</Key> and give it a name (e.g. your pay period dates). A period holds all the days inside it and shows your totals.</div>
+        <div style={h}>📁 3 · Create a period</div>
+        <div style={p}><Key>+ New Period</Key> on the home screen. Name it after your pay dates — it holds all your days and totals.</div>
       </div>
 
       <div style={card}>
-        <div style={h}>3 · Add a day's data</div>
-        <div style={p}>You'll take <Hi>3 screenshots</Hi> during a normal working day. Copy the text from each and paste them <Hi>together into one box</Hi>:</div>
-        <div style={mut}><Hi>① Before you start (Manifest Summary):</Hi> copy each round's summary — Round Number, date and parcel types.</div>
-        <img alt="Manifest Summary example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gdG9wIGJhciAtLT4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjQ0IiBmaWxsPSIjMWE4Y2ZmIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIyOCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIxNSIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk1BTklGRVNUIFNVTU1BUlk8L3RleHQ+CiAgPCEtLSBjYXJkIC0tPgogIDxyZWN0IHg9IjEyIiB5PSI1NiIgd2lkdGg9IjI5NiIgaGVpZ2h0PSIzMDAiIHJ4PSIxMCIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjZTJlNmVlIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI4NiIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxNiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPjAyODcwMDAwMDAwMDA8L3RleHQ+CgogIDwhLS0gaGlnaGxpZ2h0IGJveCBhcm91bmQgY29weSBhcmVhIC0tPgogIDxyZWN0IHg9IjIwIiB5PSIxMDAiIHdpZHRoPSIyODAiIGhlaWdodD0iMjEwIiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KCiAgPHRleHQgeD0iMTYwIiB5PSIxMjAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Sb3VuZCBOdW1iZXI6IDEyMzQ1NjwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjEzOCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk1hbmlmZXN0IERhdGU6IDA0LzA2LzIwMjY8L3RleHQ+CgogIDx0ZXh0IHg9IjMyIiB5PSIxNzAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIj5Ub3RhbCBEZWxpdmVyaWVzOiA2ODwvdGV4dD4KCiAgPHRleHQgeD0iMTYwIiB5PSIxOTYiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QYXJjZWwgVHlwZXM8L3RleHQ+CiAgPHRleHQgeD0iMzIiIHk9IjIyMCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiPlNtYWxsIFBhY2tldDogNDA8L3RleHQ+CiAgPHRleHQgeD0iMzIiIHk9IjI0MCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiPlBhY2tldDogOTwvdGV4dD4KICA8dGV4dCB4PSIzMiIgeT0iMjYwIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iYm9sZCI+UG9zdGFibGU6IDEzPC90ZXh0PgogIDx0ZXh0IHg9IjMyIiB5PSIyODAiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTIiIGZvbnQtd2VpZ2h0PSJib2xkIj5TdGFuZGFyZDogNDwvdGV4dD4KICA8dGV4dCB4PSIzMiIgeT0iMzAwIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iYm9sZCI+SGVhdnk6IDI8L3RleHQ+CgogIDwhLS0gYnV0dG9ucyAtLT4KICA8cmVjdCB4PSIyMCIgeT0iMzgwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjQwIiByeD0iMjAiIGZpbGw9IiNmZmYiIHN0cm9rZT0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iNDA1IiBmaWxsPSIjMWE4Y2ZmIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5SZWplY3Q8L3RleHQ+CiAgPHJlY3QgeD0iMjAiIHk9IjQ4MCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSI0MCIgcng9IjIwIiBmaWxsPSIjMGExYTUyIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI1MDUiIGZpbGw9IiMzZmQwZmYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkNvbnRpbnVlPC90ZXh0PgoKICA8IS0tIGxhYmVsIC0tPgogIDxyZWN0IHg9IjIwIiB5PSIzMTgiIHdpZHRoPSIyODAiIGhlaWdodD0iMjIiIHJ4PSI0IiBmaWxsPSIjZjViNTBhIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIzMzMiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7irIYgQ09QWSBUSElTIOKAlCBvbmUgYm94IHBlciByb3VuZDwvdGV4dD4KPC9zdmc+Cg==" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...mut,marginTop:10}}><Hi>② The route popup:</Hi> copy the distance &amp; duration line.</div>
-        <img alt="Route popup example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gZGltbWVkIGJnIC0tPgogIDxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNDQiIGZpbGw9IiM1YTcwOGYiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4IiBmaWxsPSIjZGZlNmVmIiBmb250LXNpemU9IjE1IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TUFOSUZFU1QgU1VNTUFSWTwvdGV4dD4KICA8cmVjdCB4PSIxMiIgeT0iNTYiIHdpZHRoPSIyOTYiIGhlaWdodD0iMjIwIiByeD0iMTAiIGZpbGw9IiNlOWVkZjMiLz4KICA8dGV4dCB4PSIxNjAiIHk9Ijg2IiBmaWxsPSIjN2E4YWEwIiBmb250LXNpemU9IjE0IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+MDI4NzAwMDAwMDAwMDwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjExMiIgZmlsbD0iIzdhOGFhMCIgZm9udC1zaXplPSIxMSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Um91bmQgTnVtYmVyOiAxMjM0NTY8L3RleHQ+CgogIDwhLS0gcG9wdXAgLS0+CiAgPHJlY3QgeD0iMjQiIHk9IjE1MCIgd2lkdGg9IjI3MiIgaGVpZ2h0PSIyNzAiIHJ4PSIxMCIgZmlsbD0iI2Y0ZjVmNyIgc3Ryb2tlPSIjY2ZkNWUwIi8+CiAgPHRleHQgeD0iMTYwIiB5PSIxODQiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5NYW5pZmVzdCBDb25maXJtYXRpb248L3RleHQ+CiAgPGxpbmUgeDE9IjI0IiB5MT0iMjAwIiB4Mj0iMjk2IiB5Mj0iMjAwIiBzdHJva2U9IiNkZmUzZWEiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjIyOCIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+QXJlIHlvdSBoYXBweSB0byBwcm9jZWVkIHdpdGggMzwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjI0NiIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+ZG93bmxvYWRlZCBtYW5pZmVzdChzKT88L3RleHQ+CgogIDwhLS0gaGlnaGxpZ2h0IHRoZSBkaXN0YW5jZS9kdXJhdGlvbiAtLT4KICA8cmVjdCB4PSIzNCIgeT0iMjYyIiB3aWR0aD0iMjUyIiBoZWlnaHQ9Ijc0IiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4NCIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxMS41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Zb3VyIGRyYWZ0IHJvdXRlIGhhcyBhbiBlc3RpbWF0ZWQ8L3RleHQ+CiAgPHRleHQgeD0iMTYwIiB5PSIzMDIiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTEuNSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+ZGlzdGFuY2Ugb2YgMjcuNzUgbWlsZShzKSBhbmQgZHVyYXRpb248L3RleHQ+CiAgPHRleHQgeD0iMTYwIiB5PSIzMjAiIGZpbGw9IiMxYTI3NDAiIGZvbnQtc2l6ZT0iMTEuNSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+b2YgOSBob3VyKHMpIDEzIG1pbnV0ZShzKTwvdGV4dD4KCiAgPGxpbmUgeDE9IjE2MCIgeTE9IjM2MCIgeDI9IjE2MCIgeTI9IjQxMCIgc3Ryb2tlPSIjZGZlM2VhIi8+CiAgPGxpbmUgeDE9IjM0IiB5MT0iMzYwIiB4Mj0iMjg2IiB5Mj0iMzYwIiBzdHJva2U9IiNkZmUzZWEiLz4KICA8dGV4dCB4PSI5NyIgeT0iMzkyIiBmaWxsPSIjMWEyNzQwIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5ObzwvdGV4dD4KICA8dGV4dCB4PSIyMjMiIHk9IjM5MiIgZmlsbD0iIzFhMjc0MCIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+WWVzPC90ZXh0PgoKICA8IS0tIGxhYmVsIC0tPgogIDxyZWN0IHg9IjM0IiB5PSI0MzAiIHdpZHRoPSIyNTIiIGhlaWdodD0iMjIiIHJ4PSI0IiBmaWxsPSIjZjViNTBhIi8+CiAgPHRleHQgeD0iMTYwIiB5PSI0NDUiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtd2VpZ2h0PSJib2xkIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7irIYgQ09QWSBUSEUgRElTVEFOQ0UgJmFtcDsgRFVSQVRJT04gTElORTwvdGV4dD4KPC9zdmc+Cg==" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...mut,marginTop:10}}><Hi>③ End of day (Day Summary):</Hi> copy the delivery summary.</div>
-        <img alt="Day Summary example" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNTYwIiB2aWV3Qm94PSIwIDAgMzIwIDU2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KICA8cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjU2MCIgZmlsbD0iI2ZmZmZmZiIvPgogIDxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNDQiIGZpbGw9IiMxYThjZmYiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjI4IiBmaWxsPSIjZmZmIiBmb250LXNpemU9IjE1IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+REFZIFNVTU1BUlk8L3RleHQ+CgogIDwhLS0gbWVudSByb3cgLS0+CiAgPHJlY3QgeD0iMTIiIHk9IjU0IiB3aWR0aD0iMTQyIiBoZWlnaHQ9IjMwIiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjgzIiB5PSI3NCIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIxMiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TWVudTwvdGV4dD4KICA8cmVjdCB4PSIxNjYiIHk9IjU0IiB3aWR0aD0iMTQyIiBoZWlnaHQ9IjMwIiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjIzNyIgeT0iNzQiIGZpbGw9IiNmZmYiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNpZ25vdXQ8L3RleHQ+CiAgPHJlY3QgeD0iMTIiIHk9IjkwIiB3aWR0aD0iMjk2IiBoZWlnaHQ9IjI4IiByeD0iNSIgZmlsbD0iIzFhOGNmZiIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iMTA5IiBmaWxsPSIjZmZmIiBmb250LXNpemU9IjEyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5IZWxwPC90ZXh0PgoKICA8IS0tIHllbGxvdyBub3RlIC0tPgogIDxyZWN0IHg9IjEyIiB5PSIxMjYiIHdpZHRoPSIyOTYiIGhlaWdodD0iNDQiIHJ4PSI2IiBmaWxsPSIjZmRmNmM4IiBzdHJva2U9IiNlN2RjYTAiLz4KICA8dGV4dCB4PSIxNjAiIHk9IjE0NiIgZmlsbD0iIzMzMyIgZm9udC1zaXplPSIxMC41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5QbGVhc2UgZW5zdXJlIGFsbCBjYXJyaWVkIGZvcndhcmQgcGFyY2VsczwvdGV4dD4KICA8dGV4dCB4PSIxNjAiIHk9IjE2MSIgZmlsbD0iIzMzMyIgZm9udC1zaXplPSIxMC41IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5hcmUgc3RvcmVkIGluIGEgc2VjdXJlIHBsYWNlLjwvdGV4dD4KCiAgPCEtLSBzdGF0cyBjYXJkIHdpdGggaGlnaGxpZ2h0IC0tPgogIDxyZWN0IHg9IjEyIiB5PSIxODIiIHdpZHRoPSIyOTYiIGhlaWdodD0iMTgwIiByeD0iOCIgZmlsbD0iI2ZmZjdkNiIgc3Ryb2tlPSIjZjViNTBhIiBzdHJva2Utd2lkdGg9IjIiLz4KICA8dGV4dCB4PSIyOCIgeT0iMjEyIiBmaWxsPSIjMTExIiBmb250LXNpemU9IjEzIiBmb250LXdlaWdodD0iYm9sZCI+U3VjY2Vzc2Z1bCBkZWxpdmVyaWVzOiAyNDM8L3RleHQ+CiAgPHRleHQgeD0iMjgiIHk9IjIzNCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMyIgZm9udC13ZWlnaHQ9ImJvbGQiPkNhcnJ5IGZvcndhcmQ6IDk8L3RleHQ+CiAgPHRleHQgeD0iMjgiIHk9IjI1NiIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMyIgZm9udC13ZWlnaHQ9ImJvbGQiPkNhbm5vdCBkZWxpdmVyOiAwPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIyOTIiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5TdWNjZXNzZnVsIGNvbGxlY3Rpb25zOiAxPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIzMTQiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5DYXJyeSBmb3J3YXJkOiAwPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIzMzYiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtd2VpZ2h0PSJib2xkIj5DYW5ub3QgY29sbGVjdDogMjwvdGV4dD4KCiAgPCEtLSBsYWJlbCAtLT4KICA8cmVjdCB4PSIxMiIgeT0iMzcyIiB3aWR0aD0iMjk2IiBoZWlnaHQ9IjIyIiByeD0iNCIgZmlsbD0iI2Y1YjUwYSIvPgogIDx0ZXh0IHg9IjE2MCIgeT0iMzg3IiBmaWxsPSIjMTExIiBmb250LXNpemU9IjExIiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+4qyGIENPUFkgVEhJUyBBVCBFTkQgT0YgREFZPC90ZXh0Pgo8L3N2Zz4K" style={{width:"100%",maxWidth:280,display:"block",margin:"10px auto",borderRadius:8,border:"1px solid "+S.border}} />
-        <div style={{...p,marginTop:10}}>Open your period, tap <Key>📋 Paste Manifest Text</Key>, paste everything in, tap <Key>PARSE →</Key>, check the figures, then <Key>✓ SAVE</Key>. If you run several rounds, paste all of their Manifest Summaries together in the same box.</div>
-        <div style={{...mut,marginTop:12,marginBottom:4,fontWeight:700,color:S.text}}>Example — what your pasted text looks like:</div>
+        <div style={h}>📋 4 · Add a day</div>
+        <div style={p}>Open your period → <Key>📋 Paste Manifest Text</Key>. Paste all 3 screenshots' text into one box → <Key>PARSE →</Key> → <Key>✓ SAVE</Key>.</div>
+        <div style={{...mut,marginTop:6,marginBottom:4,fontWeight:700,color:S.text}}>What you paste:</div>
         <div style={codebox}>{`Round Number: 100200
-Manifest Date: 06/06/2026
-Total Deliveries: 60
-Total Collections: 2
-Parcel Types
 Small Packet: 34
 Postable: 13
 Standard: 6
 Packet: 7
-
-Your draft route has an estimated distance of 21.89 mile(s) and duration of 7 hour(s) 36 minute(s)
-
+...distance of 21.89 mile(s)...
+...7 hour(s) 36 minute(s)
 Successful deliveries: 186
 Carry forward: 18
-Cannot deliver: 1
-Successful collections: 2
-Carry forward: 1
-Cannot collect: 0`}</div>
-        <div style={{...mut,marginTop:8}}>You don't need to tidy it up — the app picks out the round number, parcels, distance, duration and day summary on its own. Service Offers, Postcode Coverage and other extra lines are simply ignored.</div>
+Successful collections: 2`}</div>
+        <div style={{...p,marginTop:8}}>→ <Hi>no need to tidy it</Hi> — the app finds what it needs.</div>
+        <div style={{background:S.bg,border:"1px solid "+S.border,borderRadius:6,padding:"10px",marginTop:8}}>
+          <div style={mut}><Hi>No manifest in the morning?</Hi> Use <Key>✏️ Manual Entry</Key> instead — type the date (e.g. 0506), round number and parcels by hand. Leave Miles/Hours blank and the app uses your average.</div>
+        </div>
       </div>
 
       <div style={card}>
-        <div style={h}>4 · No manifest? Use Manual Entry</div>
-        <div style={p}>Sometimes Evri's system has <Hi>no manifest in the morning</Hi>, so you get no Manifest Summary screenshots. In that case, wait until the figures appear in the official Evri app under <Hi>My Pay → Estimated pay → by round</Hi>, then enter them by hand.</div>
-        <div style={p}>Open your period and tap <Key>✏️ Manual Entry</Key>. Type the <Hi>date as 4 digits</Hi> (e.g. <Hi>0506</Hi> for 5 June — no slash needed). For each round, type the <Hi>Round number</Hi> and the quantity of each parcel type. Tap <Key>+ Round</Key> if you ran more than one.</div>
-        <div style={p}>Fill in the <Hi>Day Summary</Hi> from your end-of-day screenshot. For <Hi>Miles / Hours</Hi>, you won't know these without a manifest — just <Hi>leave them blank</Hi> and the app fills in your usual average. Tap <Key>✓ SAVE</Key> and your pay is worked out automatically.</div>
+        <div style={h}>📊 5 · See your results</div>
+        <div style={p}>Your totals and pay calculate <Hi>automatically</Hi>. Change a rate in <Key>⚙ Settings</Key> and <Hi>every saved day updates instantly</Hi>.</div>
       </div>
 
       <div style={card}>
-        <div style={h}>5 · Your earnings update automatically</div>
-        <div style={p}>Pay is calculated live from the rates in Settings. If your <Hi>rates ever change</Hi>, just update them in <Key>⚙ Settings</Key> — <Hi>every saved day recalculates instantly</Hi>. No need to re-enter anything.</div>
+        <div style={h}>🧾 6 · Check your invoice</div>
+        <div style={p}><Key>🧾 Invoice Checker</Key> → pick the round → enter the <Hi>period number</Hi>, parcel counts and <Hi>what you were paid</Hi>.</div>
+        <div style={p}>→ it shows any <Hi>shortfall</Hi> and gives you a claim message to copy.</div>
+        <div style={{background:S.amber+"18",border:"1px solid "+S.amber+"66",borderRadius:6,padding:"9px 12px",marginTop:8}}>
+          <div style={{fontSize:12,color:S.amber,fontWeight:700}}>⚠ Check each round separately — never combine them.</div>
+        </div>
+        <div style={{...mut,marginTop:8}}>Figures are a <Hi>guideline only</Hi>. Real pay can differ (unmanifested parcels, wrong banding, returns, CNA). Raise genuine shortfalls through the official pay query process.</div>
       </div>
 
       <div style={card}>
-        <div style={h}>6 · Back up your data (important)</div>
-        <div style={p}>Your data is stored <Hi>only on this phone</Hi>. Tap <Key>⬇ Backup</Key> on the home screen now and then to save a file. If you clear your browser, change phone, or anything goes wrong, tap <Key>⬆ Restore</Key> to load it back.</div>
-      </div>
-
-      <div style={card}>
-        <div style={h}>7 · Display options</div>
-        <div style={p}>Use <Key>Text − / +</Key> to make everything bigger or smaller, and the <Key>Light / Dark</Key> toggle to switch theme. Your choice is remembered.</div>
-      </div>
-
-      <div style={card}>
-        <div style={h}>8 · About the Invoice Checker figures</div>
-        <div style={p}>The amounts shown in <Key>🧾 Invoice Checker</Key> are <Hi>guidelines only</Hi>. Your actual pay may differ because of factors outside this app's knowledge:</div>
-        <div style={{...mut,marginBottom:5}}>• <b>Unmanifested parcels</b> — items delivered that never appeared on your manifest</div>
-        <div style={{...mut,marginBottom:5}}>• <b>Wrong banding</b> — a parcel recorded under the wrong size category by the depot</div>
-        <div style={{...mut,marginBottom:5}}>• <b>Returns &amp; failed deliveries</b> — parcels returned to depot or marked as failed after being logged</div>
-        <div style={{...mut,marginBottom:10}}>• <b>Customer not available (CNA) deductions</b> — these may affect your totals depending on your agreement</div>
-        <div style={p}>If you believe there is a genuine shortfall after accounting for the above, use the claim text generated by the app as a <Hi>starting point</Hi> and raise it through the <Hi>official disputes or pay query process</Hi>. This app is not affiliated with any courier company and cannot guarantee the accuracy of calculated figures.</div>
-      </div>
-
-      <div style={card}>
-        <div style={h}>9 · Your privacy &amp; data</div>
-        <div style={p}>Here's exactly what happens to your data — no vague claims:</div>
-        <div style={{...mut,marginBottom:6}}>• <Hi>Your delivery data stays on your phone.</Hi> Everything you enter (rounds, rates, parcels, earnings) is saved in your browser's local storage on this device only. It is never sent to any server, and there is no account or login.</div>
-        <div style={{...mut,marginBottom:6}}>• <Hi>Backups stay with you.</Hi> When you tap Backup, the file saves to your own phone. Nothing is uploaded.</div>
-        <div style={{...mut,marginBottom:6}}>• <Hi>Analytics.</Hi> Like most free apps, this app uses Google Analytics to count anonymous usage (e.g. how many people open it). This does not include your delivery data, names, or any personal details.</div>
-        <div style={{...mut,marginBottom:10}}>• <Hi>No photo scanning.</Hi> The app does not scan or upload images. You enter data by pasting text or typing it manually.</div>
-        <div style={{fontSize:11.5,color:S.muted,lineHeight:1.6}}>If you ever clear your browser data or switch phones without a backup, your saved days will be gone — so keep a backup now and then.</div>
+        <div style={h}>🔧 7 · Other bits</div>
+        <div style={{...mut,marginBottom:6}}>• <Key>⬇ Backup</Key> / <Key>⬆ Restore</Key> — your data lives only on this phone, so back up now and then.</div>
+        <div style={{...mut,marginBottom:6}}>• <Key>Text − / +</Key> and <Key>Light / Dark</Key> — adjust the display.</div>
+        <div style={{...mut,marginBottom:0}}>• <Hi>🔒 Privacy</Hi> — your delivery data stays on your phone. The app only uses Google Analytics for anonymous stats. Nothing else is uploaded.</div>
       </div>
     </>);
   }
@@ -699,14 +642,14 @@ Cannot collect: 0`}</div>
     {(() => {
       const noRounds = Object.keys(rateConfig.rounds||{}).length===0;
       return (<>
-        {/* Row 1: Rounds & Rates | New Period | Help */}
-        <div style={{display:"flex",gap:8,marginBottom:8}}>
-          <div onClick={()=>setView("settings")} style={{flex:1,background:noRounds?S.amber:S.card,border:"1px solid "+(noRounds?S.amber:S.border),color:noRounds?"#16203A":S.text,padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>⚙ Rounds &amp; Rates</div>
-          <div onClick={()=>setView("add_period")} style={{flex:1,background:S.amber,color:"#16203A",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,textAlign:"center",whiteSpace:"nowrap"}}>+ New Period</div>
-          <div onClick={()=>setView("help")} style={{background:"transparent",border:"1px solid "+S.amber+"88",color:S.amber,padding:"11px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"center"}}>❓</div>
+        {/* Row 1: Rounds & Rates | New Period | Guide */}
+        <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+          <div onClick={()=>setView("settings")} style={{flex:1,background:noRounds?S.amber:"#97D3CD",border:"none",color:"#0C2C47",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,whiteSpace:"nowrap",display:"flex",alignItems:"center",justifyContent:"center"}}>⚙ Rounds &amp; Rates</div>
+          <div onClick={()=>setView("add_period")} style={{flex:1,background:"#97D3CD",color:"#0C2C47",padding:"11px 8px",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,whiteSpace:"nowrap",display:"flex",alignItems:"center",justifyContent:"center"}}>+ New Period</div>
+          <div onClick={()=>setView("help")} style={{background:S.card,border:"1px solid "+S.border,color:S.text,padding:"11px 14px",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12.5,whiteSpace:"nowrap",display:"flex",alignItems:"center",justifyContent:"center"}}>Guide</div>
         </div>
         {/* Row 2: utility */}
-        <div style={{display:"flex",gap:6,marginBottom:8,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
           <div onClick={()=>setFontScale(f=>Math.max(0.8,Math.round((f-0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>−</div>
           <div onClick={()=>setFontScale(f=>Math.min(1.6,Math.round((f+0.1)*10)/10))} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>+</div>
           <div onClick={()=>setLight(l=>!l)} style={{background:S.card,border:"1px solid "+S.border,color:S.text,width:34,height:34,borderRadius:5,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>{light?"🌙":"☀"}</div>
@@ -714,7 +657,7 @@ Cannot collect: 0`}</div>
           <label style={{flex:1,background:S.card,border:"1px solid "+S.border,color:S.text,padding:"8px 0",borderRadius:5,cursor:"pointer",fontWeight:600,fontSize:12,whiteSpace:"nowrap",textAlign:"center"}}>⬆ Restore<input type="file" accept=".json" style={{display:"none"}} onChange={importData} /></label>
         </div>
         {/* Row 3: Invoice Checker — secondary */}
-        <div onClick={()=>{initClaim();setView("claim");}} style={{background:"transparent",border:"1px solid "+S.amber+"88",color:S.amber,padding:"8px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12,textAlign:"center",marginBottom:14,letterSpacing:0.2}}>Invoice Checker</div>
+        <div onClick={()=>{initClaim();setView("claim");}} style={{background:"#97D3CD",color:"#0C2C47",padding:"9px 0",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12.5,textAlign:"center",marginBottom:14,letterSpacing:0.2}}>🧾 Invoice Checker</div>
         {noRounds && <div style={{background:S.amber+"15",border:"1px solid "+S.amber+"44",borderRadius:7,padding:"10px 14px",marginBottom:14,fontSize:11,color:S.amber}}>⚠ First time? Tap "Rounds &amp; Rates" and add your rounds + rates first</div>}
       </>);
     })()}
@@ -751,6 +694,7 @@ Cannot collect: 0`}</div>
     {topBar("NEW PERIOD", ()=>setView("home"))}
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <input type="text" value={periodName} onChange={e=>setPeriodName(e.target.value)} placeholder="e.g. Jun W1 / Period 12"
+        style={{background:S.card,border:"1px solid "+S.border,color:S.text,borderRadius:8,padding:"13px 14px",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}
         onKeyDown={e=>{if(e.key==="Enter"&&periodName.trim()){persist({...data,periods:[...data.periods,{name:periodName.trim(),days:[],createdAt:Date.now()}]});showToast("Created");setPeriodName("");setView("home");}}} />
       <Btn onClick={()=>{if(!periodName.trim())return;persist({...data,periods:[...data.periods,{name:periodName.trim(),days:[],createdAt:Date.now()}]});showToast("Created");setPeriodName("");setView("home");}}>CREATE</Btn>
     </div>
@@ -834,9 +778,9 @@ Cannot collect: 0`}</div>
                           <b>Round {r.round}</b><span style={{color:S.amber}}>{fmt(live.total)}</span>
                         </div>
                         {live.lines.filter(l=>l.count>0).map((l,j)=>(
-                          <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:S.muted,marginBottom:3}}>
-                            <span>{l.type}</span>
-                            <span>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
+                          <div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,color:S.muted,marginBottom:3}}>
+                            <span style={{flexShrink:0}}>{l.type}</span>
+                            <span style={{textAlign:"right"}}>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
                           </div>
                         ))}
                       </div>
@@ -1148,9 +1092,9 @@ Cannot collect: 0`}</div>
             <b>Round {r.round}</b><span style={{color:S.amber}}>{fmt(live.total)}</span>
           </div>
           {live.lines.map((l,j)=>(
-            <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:S.muted,marginBottom:3}}>
-              <span>{l.type}</span>
-              <span>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
+            <div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,color:S.muted,marginBottom:3}}>
+              <span style={{flexShrink:0}}>{l.type}</span>
+              <span style={{textAlign:"right"}}>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
             </div>
           ))}
         </div>
