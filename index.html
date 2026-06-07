@@ -818,8 +818,8 @@ Successful collections: 2`}</div>
           const di=i;
           const open = expandedDay===di;
           return (
-            <div key={di} style={{background:S.panel,border:"1px solid "+(open?S.cyan+"66":S.border),borderRadius:10,padding:"12px 14px"}}>
-              <div onClick={()=>setExpandedDay(open?null:di)} style={{cursor:"pointer"}}>
+            <div key={di} onClick={()=>setExpandedDay(open?null:di)} style={{background:S.panel,border:"1px solid "+(open?S.cyan+"66":S.border),borderRadius:10,padding:"12px 14px",cursor:"pointer"}}>
+              <div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <span style={{fontWeight:700}}>{open?"▾ ":"▸ "}{d.date}</span>
                   <div onClick={(e)=>{e.stopPropagation();if(confirm("Delete?"))deleteDay(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
