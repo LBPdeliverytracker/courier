@@ -185,6 +185,15 @@ function Stat({ label, value, color }) {
   );
 }
 
+function StatSmall({ label, value, color }) {
+  return (
+    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:7, padding:"7px 9px", flex:"1 1 70px", minWidth:0 }}>
+      <div style={{ fontSize:8, color:S.muted, textTransform:"uppercase", letterSpacing:0.8, marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{label}</div>
+      <div style={{ fontSize:13, fontWeight:700, color:color||S.text, overflowWrap:"anywhere" }}>{value}</div>
+    </div>
+  );
+}
+
 function PeriodNameEditor({ name, onSave }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(name);
@@ -192,7 +201,7 @@ function PeriodNameEditor({ name, onSave }) {
     <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
       <span style={{ fontWeight:700, fontSize:16 }}>{name}</span>
       <div onClick={() => { setVal(name); setEditing(true); }}
-        style={{ background:S.card, border:"1px solid "+S.border, color:S.muted, padding:"3px 10px", borderRadius:4, cursor:"pointer", fontSize:11 }}>✏ edit</div>
+        style={{ marginLeft:"auto", background:S.card, border:"1px solid "+S.border, color:S.muted, padding:"3px 10px", borderRadius:4, cursor:"pointer", fontSize:11 }}>✏ edit</div>
     </div>
   );
   return (
@@ -220,6 +229,7 @@ function App() {
   const [periodName, setPeriodName] = useState("");
   const [rateConfig, setRateConfig] = useState(() => loadRates());
   const [otherKey, setOtherKey] = useState(0);
+  const [showEarnInfo, setShowEarnInfo] = useState(false);
   const [light, setLight] = useState(() => { try { return localStorage.getItem("dt_light")==="1"; } catch { return false; } });
   const [manualDate, setManualDate] = useState(""); // DD/MM only
   const [manualList, setManualList] = useState([]); // [{round:"", counts:{type:val}}]
@@ -756,14 +766,35 @@ Successful collections: 2`}</div>
           }} />
         </div>
       </div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-        <Stat label="Manifest" value={s.total} />
-        <Stat label="Delivered" value={s.success} color={S.green} />
-        <Stat label="CF" value={s.cf} color={S.amber} />
-        <Stat label="Collection" value={s.collections} color={S.cyan} />
-        <Stat label="Earned" value={fmt(s.amount)} color={S.amber} />
-        <Stat label="Miles" value={s.miles+"mi"} color={S.cyan} />
-        <Stat label="Drive" value={durH+"h"+durM+"m"} color={S.cyan} />
+      <div style={{display:"flex",gap:8,marginBottom:8,alignItems:"stretch"}}>
+        <div style={{flex:"1 1 auto",background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",minWidth:0}}>
+          <div style={{fontSize:9,color:S.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
+            Estimated Earnings
+            <span onClick={()=>setShowEarnInfo(v=>!v)} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:14,height:14,borderRadius:"50%",border:"1px solid "+S.muted,color:S.muted,fontSize:9,cursor:"pointer",fontStyle:"italic",fontWeight:700,flexShrink:0}}>i</span>
+          </div>
+          <div style={{fontSize:28,fontWeight:800,color:S.amber,whiteSpace:"nowrap"}}>{fmt(s.amount)}</div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
+          <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:7,padding:"6px 10px",minWidth:96}}>
+            <div style={{fontSize:8,color:S.muted,textTransform:"uppercase",letterSpacing:0.8,marginBottom:1}}>Distance</div>
+            <div style={{fontSize:14,fontWeight:700,color:S.cyan,whiteSpace:"nowrap"}}>{s.miles}mi</div>
+          </div>
+          <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:7,padding:"6px 10px",minWidth:96}}>
+            <div style={{fontSize:8,color:S.muted,textTransform:"uppercase",letterSpacing:0.8,marginBottom:1}}>Duration</div>
+            <div style={{fontSize:14,fontWeight:700,color:S.cyan,whiteSpace:"nowrap"}}>{durH}h{durM}m</div>
+          </div>
+        </div>
+      </div>
+      {showEarnInfo && (
+        <div style={{background:S.bg,border:"1px solid "+S.border,borderRadius:7,padding:"10px 12px",marginBottom:8,fontSize:11,color:S.muted,lineHeight:1.5}}>
+          This is an <b style={{color:S.text}}>estimate</b> based on your manifest data and the rates you set. It excludes damaged, unmanifested and carried-forward parcels, so your actual pay may differ.
+        </div>
+      )}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+        <StatSmall label="Manifest" value={s.total} />
+        <StatSmall label="Delivered" value={s.success} color={S.green} />
+        <StatSmall label="CF" value={s.cf} color={S.amber} />
+        <StatSmall label="Collection" value={s.collections} color={S.cyan} />
       </div>
       {Object.keys(s.types).length>0 && (
         <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
@@ -778,8 +809,8 @@ Successful collections: 2`}</div>
           </div>
         </div>
       )}
-      <Btn color="cyan" onClick={()=>setView("paste")} style={{marginBottom:8}}>📋 Paste Manifest Text</Btn>
-      <Btn onClick={()=>{ initManual(); setView("manual"); }} style={{marginBottom:8}}>✏️ Manual Entry (no manifest)</Btn>
+      <Btn onClick={()=>setView("paste")} style={{marginBottom:8,background:"#97D3CD",color:"#0C2C47"}}>📋 Paste Manifest Text</Btn>
+      <Btn onClick={()=>{ initManual(); setView("manual"); }} style={{marginBottom:8,background:"#97D3CD",color:"#0C2C47"}}>✏️ Manual Entry (no manifest)</Btn>
       <Btn color="red" onClick={()=>{if(confirm("Delete period?"))deletePeriod();}} style={{marginBottom:18}}>DELETE PERIOD</Btn>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {activePeriod.days.length===0 && <div style={{color:S.muted,fontSize:12,textAlign:"center",padding:24}}>no days yet</div>}
