@@ -308,6 +308,8 @@ function App() {
   const [rateConfig, setRateConfig] = useState(() => loadRates());
   const [otherKey, setOtherKey] = useState(0);
   const [sundayOpen, setSundayOpen] = useState({});
+  const [sundayFlat, setSundayFlat] = useState({});
+  const [sundayKey, setSundayKey] = useState(0);
   const [showEarnInfo, setShowEarnInfo] = useState(false);
   const [showDayEarnInfo, setShowDayEarnInfo] = useState(false);
   const [light, setLight] = useState(() => { try { return localStorage.getItem("dt_light")==="1"; } catch { return false; } });
@@ -786,6 +788,23 @@ Successful collections: 2`}</div>
       const nc = {...rateConfig, sundayRounds:{...sundayRounds, [round]:{...base, [type]: parseFloat(val)||0}}};
       setRateConfig(nc); saveRates(nc);
     };
+    // flat rate: set every Sunday type to the same value at once
+    const setAllSunday = (round, val) => {
+      const v = parseFloat(val);
+      const filled = {};
+      PARCEL_TYPE_LIST.forEach(t => { filled[t] = (!v||v<=0) ? 0 : v; });
+      const nc = {...rateConfig, sundayRounds:{...sundayRounds, [round]:filled}};
+      setRateConfig(nc); saveRates(nc); setSundayKey(k=>k+1);
+    };
+    // typing the Sunday Standard rate auto-fills every other Sunday type
+    const setStandardSunday = (round, val) => {
+      const base = parseFloat(val);
+      if (!base || base<=0) { updateSundayRate(round, "Standard", val); return; }
+      const filled = deriveFromStandard(base);
+      filled["Standard"] = val;
+      const nc = {...rateConfig, sundayRounds:{...sundayRounds, [round]:filled}};
+      setRateConfig(nc); saveRates(nc); setSundayKey(k=>k+1);
+    };
     const roundKeys = Object.keys(rounds);
     const inp = {width:90,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none",textAlign:"right"};
     const OTHER_TYPES = PARCEL_TYPE_LIST.filter(t=>t!=="Standard");
@@ -823,19 +842,39 @@ Successful collections: 2`}</div>
 
           <div style={{borderTop:"1px solid "+S.border,margin:"12px 0"}}></div>
           <div onClick={()=>setSundayOpen(o=>({...o,[round]:!o[round]}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
-            <span style={{fontWeight:700,color:S.cyan,fontSize:13}}>☀ Sunday rates <span style={{color:S.muted,fontWeight:400,fontSize:11}}>(optional)</span></span>
+            <span style={{fontWeight:700,color:S.amber,fontSize:13}}>☀ Sunday rates <span style={{color:S.muted,fontWeight:400,fontSize:11}}>(optional)</span></span>
             <span style={{color:S.muted}}>{sundayOpen[round]?"▾":"▸"}</span>
           </div>
           {sundayOpen[round] && (
             <div style={{marginTop:10}}>
-              <div style={{fontSize:10.5,color:S.muted,marginBottom:10,lineHeight:1.5}}>Defaults to £1.00 each. Tick "Sunday" on a day to use these instead. Adjust any type below.</div>
-              {PARCEL_TYPE_LIST.filter(t=>t!=="Collection").map(type=>(
-                <div key={"sun_"+type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                  <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
-                  <input type="number" step="0.01" inputMode="decimal" defaultValue={sundayRateFor(round,type)}
-                    onChange={e=>updateSundayRate(round,type,e.target.value)} style={inp} />
+              <div style={{fontSize:10.5,color:S.muted,marginBottom:10,lineHeight:1.5}}>Defaults to £1.00 each. Tick "Sunday" on a day to use these instead.</div>
+              <div onClick={()=>setSundayFlat(f=>({...f,[round]:!f[round]}))} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:12}}>
+                <span style={{width:20,height:20,borderRadius:4,border:"2px solid "+S.amber,background:sundayFlat[round]?S.amber:"transparent",color:"#0C2C47",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700}}>{sundayFlat[round]?"✓":""}</span>
+                <span style={{fontSize:12.5,color:S.text}}>Flat rate <span style={{color:S.muted}}>— same £ for every type</span></span>
+              </div>
+              {sundayFlat[round] ? (
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,background:S.amber+"18",border:"1px solid "+S.amber+"55",borderRadius:6,padding:"8px 10px"}}>
+                  <span style={{flex:1,fontSize:13,fontWeight:700,color:S.amber}}>☀ Every parcel</span>
+                  <input type="number" step="0.01" inputMode="decimal" defaultValue={sundayRateFor(round,"Standard")}
+                    onChange={e=>setAllSunday(round,e.target.value)} placeholder="1.20" style={inp} />
                 </div>
-              ))}
+              ) : (
+                <>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,background:S.amber+"18",border:"1px solid "+S.amber+"55",borderRadius:6,padding:"8px 10px"}}>
+                    <span style={{flex:1,fontSize:13,fontWeight:700,color:S.amber}}>☀ Standard Parcel</span>
+                    <input key={"sunstd_"+round+"_"+sundayKey} type="number" step="0.01" inputMode="decimal" defaultValue={sundayRateFor(round,"Standard")}
+                      onChange={e=>setStandardSunday(round,e.target.value)} placeholder="1.00" style={inp} />
+                  </div>
+                  <div style={{fontSize:10,color:S.muted,marginBottom:12}}>Type this first — the rest fill in automatically ↓</div>
+                  {OTHER_TYPES.map(type=>(
+                    <div key={"sun_"+type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                      <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
+                      <input key={"sun_"+round+"_"+type+"_"+sundayKey} type="number" step="0.01" inputMode="decimal" defaultValue={sundayRateFor(round,type)}
+                        onChange={e=>updateSundayRate(round,type,e.target.value)} style={inp} />
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
