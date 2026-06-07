@@ -219,7 +219,7 @@ function App() {
   const [parsed, setParsed] = useState(null);
   const [periodName, setPeriodName] = useState("");
   const [rateConfig, setRateConfig] = useState(() => loadRates());
-  const [formKey, setFormKey] = useState(0);
+  const [otherKey, setOtherKey] = useState(0);
   const [light, setLight] = useState(() => { try { return localStorage.getItem("dt_light")==="1"; } catch { return false; } });
   const [manualDate, setManualDate] = useState(""); // DD/MM only
   const [manualList, setManualList] = useState([]); // [{round:"", counts:{type:val}}]
@@ -611,8 +611,10 @@ Successful collections: 2`}</div>
       const base = parseFloat(val);
       if (!base || base<=0) { updateRate(round, "Standard", val); return; }
       const filled = deriveFromStandard(base);
+      // keep the user's exact typed Standard value (don't round-trip "1.0" -> 1)
+      filled["Standard"] = val;
       const nc = {...rateConfig, rounds:{...rounds, [round]:filled}};
-      setRateConfig(nc); saveRates(nc); setFormKey(k=>k+1);
+      setRateConfig(nc); saveRates(nc); setOtherKey(k=>k+1);
     };
     const addRound = () => {
       const rn = prompt("Enter your Round Number (e.g. 123456):");
@@ -650,7 +652,7 @@ Successful collections: 2`}</div>
 
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,background:S.green+"14",border:"1px solid "+S.green+"44",borderRadius:6,padding:"8px 10px"}}>
             <span style={{flex:1,fontSize:13,fontWeight:700,color:S.green}}>⚡ Standard Parcel</span>
-            <input key={round+"_std_"+formKey} type="number" step="0.01" inputMode="decimal" defaultValue={rounds[round]["Standard"]??0}
+            <input key={round+"_std"} type="number" step="0.01" inputMode="decimal" defaultValue={rounds[round]["Standard"]??0}
               onChange={e=>setStandard(round,e.target.value)} placeholder="1.00" style={inp} />
           </div>
           <div style={{fontSize:10,color:S.muted,marginBottom:12}}>Type this first — the rest fill in automatically ↓</div>
@@ -658,7 +660,7 @@ Successful collections: 2`}</div>
           {OTHER_TYPES.map(type=>(
             <div key={type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
-              <input key={round+"_"+type+"_"+formKey} type="number" step="0.01" inputMode="decimal" defaultValue={rounds[round][type]??0}
+              <input key={round+"_"+type+"_"+otherKey} type="number" step="0.01" inputMode="decimal" defaultValue={rounds[round][type]??0}
                 onChange={e=>updateRate(round,type,e.target.value)} style={inp} />
             </div>
           ))}
