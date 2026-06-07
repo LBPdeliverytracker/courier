@@ -794,12 +794,20 @@ Successful collections: 2`}</div>
         );
       })}
     </div>
-    <div style={{marginTop:26,paddingTop:16,borderTop:"1px solid "+S.border,textAlign:"center"}}>
-      <div style={{marginBottom:10}}>
-        <a href="https://buymeacoffee.com/lbpdeliverytracker" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",fontSize:11.5,color:S.muted}}>App stays free either way — ☕ <span style={{color:S.cyan}}>Buy me a coffee</span></a>
+    <div style={{marginTop:26,paddingTop:16,borderTop:"1px solid "+S.border}}>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,fontSize:12,lineHeight:1.4}}>
+        <div style={{display:"flex",gap:8}}><span style={{color:S.amber}}>✓</span><span style={{color:S.text}}><b>Always free</b> — no subscriptions, ever</span></div>
+        <div style={{display:"flex",gap:8}}><span style={{color:S.amber}}>✓</span><span style={{color:S.text}}><b>Private by design</b> — your data never leaves your phone</span></div>
+        <div style={{display:"flex",gap:8}}><span style={{color:S.amber}}>✓</span><span style={{color:S.text}}><b>No sign-up</b> — just open it and go</span></div>
+        <div style={{display:"flex",gap:8}}><span style={{color:S.amber}}>✓</span><span style={{color:S.text}}><b>By a courier, for couriers</b> — built from real rounds</span></div>
       </div>
-      <div>
-        <a href="mailto:lbpdeliverytracker@outlook.com?subject=Delivery%20Tracker%20-%20Help" style={{textDecoration:"none",fontSize:11.5,color:S.muted}}>Problems or suggestions? 📧 <span style={{color:S.cyan}}>Contact me</span></a>
+      <div style={{textAlign:"center"}}>
+        <div style={{marginBottom:10}}>
+          <a href="https://buymeacoffee.com/lbpdeliverytracker" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",fontSize:13.5,color:S.text,fontWeight:600}}>If it helps you out — ☕ <span style={{color:S.cyan}}>Buy me a coffee</span></a>
+        </div>
+        <div>
+          <a href="mailto:lbpdeliverytracker@outlook.com?subject=Delivery%20Tracker%20-%20Help" style={{textDecoration:"none",fontSize:11.5,color:S.muted}}>Problems or suggestions? 📧 <span style={{color:S.cyan}}>Contact me</span></a>
+        </div>
       </div>
     </div>
   </>);
