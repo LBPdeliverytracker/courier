@@ -270,6 +270,38 @@ function App() {
   }, [light]);
   useEffect(() => { try { localStorage.setItem("dt_font", String(fontScale)); } catch {} }, [fontScale]);
 
+  // Phone back button: an effect records each view change as a history entry; the
+  // system back button then steps back through views instead of closing the tab.
+  const viewStack = React.useRef(["home"]);
+  const skipPush = React.useRef(false);
+  useEffect(() => {
+    const onPop = () => {
+      const stack = viewStack.current;
+      if (stack.length > 1) {
+        stack.pop();
+        skipPush.current = true;
+        setView(stack[stack.length - 1]);
+      } else {
+        setView("home");
+      }
+      try { window.history.pushState({ d: viewStack.current.length }, ""); } catch {}
+    };
+    try { window.history.pushState({ d: 1 }, ""); } catch {}
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    const stack = viewStack.current;
+    if (skipPush.current) { skipPush.current = false; return; }
+    if (view === "home") {
+      viewStack.current = ["home"];
+    } else if (stack[stack.length - 1] !== view) {
+      stack.push(view);
+      try { window.history.pushState({ d: stack.length }, ""); } catch {}
+    }
+  }, [view]);
+
   const showToast = (msg, ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),2500); };
 
   const persist = useCallback(nd => {
