@@ -556,13 +556,15 @@ function App() {
   const wrap = children => {
     // Safari (iPhone) ignores CSS `zoom`, so fall back to transform: scale there.
     const isSafari = typeof navigator!=="undefined" && /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    const scaleStyle = isSafari
-      ? { transform:"scale("+fontScale+")", transformOrigin:"top center", width:(100/fontScale)+"%" }
+    const outer = isSafari
+      ? { transform:"scale("+fontScale+")", transformOrigin:"top left", width:(100/fontScale)+"%" }
       : { zoom:fontScale };
     return (
-    <div style={{maxWidth:680,margin:"0 auto",padding:"22px 14px",background:S.bg,color:S.text,minHeight:"100vh",...scaleStyle}}>
-      {toast && <div style={{position:"fixed",top:14,right:14,background:toast.ok?S.green:S.red,color:"#fff",padding:"9px 18px",borderRadius:7,fontWeight:700,zIndex:9999,fontSize:12}}>{toast.msg}</div>}
-      {children}
+    <div style={{...outer}}>
+      <div style={{maxWidth:680,margin:"0 auto",padding:"22px 14px",background:S.bg,color:S.text,minHeight:"100vh"}}>
+        {toast && <div style={{position:"fixed",top:14,right:14,background:toast.ok?S.green:S.red,color:"#fff",padding:"9px 18px",borderRadius:7,fontWeight:700,zIndex:9999,fontSize:12}}>{toast.msg}</div>}
+        {children}
+      </div>
     </div>
     );
   };
