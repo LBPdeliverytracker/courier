@@ -386,7 +386,8 @@ function App() {
   }, []);
 
   function exportData() {
-    const json = JSON.stringify(data, null, 2);
+    const payload = { version:2, data, rates:rateConfig };
+    const json = JSON.stringify(payload, null, 2);
     const blob = new Blob([json], {type:"application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -400,9 +401,13 @@ function App() {
     reader.onload = ev => {
       try {
         const imported = JSON.parse(ev.target.result);
-        if(!imported.periods) throw new Error();
-        persist(imported);
-        showToast("Imported "+imported.periods.length+" periods");
+        // v2 backup: { version, data, rates }. Old backup: the data object itself.
+        const restoredData = imported.version && imported.data ? imported.data : imported;
+        const restoredRates = imported.version && imported.rates ? imported.rates : null;
+        if(!restoredData.periods) throw new Error();
+        persist(restoredData);
+        if(restoredRates && restoredRates.rounds){ setRateConfig(restoredRates); saveRates(restoredRates); }
+        showToast("Imported "+restoredData.periods.length+" periods"+(restoredRates?" + rates":""));
       } catch { showToast("Invalid file", false); }
     };
     reader.readAsText(file);
