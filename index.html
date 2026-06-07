@@ -16,7 +16,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
 body { background: #0a0c12; color: #f1f3f9; font-family: monospace; min-height: 100vh; font-size: 13px; }
 textarea { background: #1a1e2e; border: 1px solid #252a3d; color: #f1f3f9; font-family: monospace; font-size: 12px; border-radius: 6px; padding: 10px; outline: none; width: 100%; resize: vertical; }
 textarea:focus { border-color: #3b82f6; }
@@ -178,18 +179,81 @@ function Btn({ children, onClick, color, style }) {
 
 function Stat({ label, value, color }) {
   return (
-    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:8, padding:"10px 12px", flex:"1 1 90px", minWidth:0 }}>
-      <div style={{ fontSize:9, color:S.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{label}</div>
-      <div style={{ fontSize:18, fontWeight:700, color:color||S.text, overflowWrap:"anywhere" }}>{value}</div>
+    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:8, padding:"10px 12px", flex:"1 1 90px" }}>
+      <div style={{ fontSize:9, color:S.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:4, whiteSpace:"nowrap" }}>{label}</div>
+      <div style={{ fontSize:18, fontWeight:700, color:color||S.text, whiteSpace:"nowrap" }}>{value}</div>
     </div>
   );
 }
 
+const DayCard = React.memo(function DayCard({ d, di, open, onToggle, onDelete, rateConfig, showDayEarnInfo, setShowDayEarnInfo }) {
+  return (
+    <div onClick={()=>onToggle(open?null:di)} style={{background:S.panel,border:"1px solid "+(open?S.cyan+"66":S.border),borderRadius:10,padding:"12px 14px",cursor:"pointer"}}>
+      <div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <span style={{fontWeight:700}}>{open?"▾ ":"▸ "}{d.date}</span>
+          <div onClick={(e)=>{e.stopPropagation();if(confirm("Delete?"))onDelete(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+        </div>
+        {!open && (
+          <div style={{fontSize:12,lineHeight:1.7}}>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+              <span style={{color:S.green,whiteSpace:"nowrap"}}>✓ delivered <b>{d.successful}</b> ({pct(d.successful,d.manifested)})</span>
+              <span style={{color:S.amber,whiteSpace:"nowrap",fontWeight:700}}>{fmt(dayAmount(d,rateConfig))}</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {open && (
+        <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+S.border}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+            <Stat label="Successful Delivered" value={d.successful+" ("+pct(d.successful,d.manifested)+")"} color={S.green} />
+            <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"10px 12px",flex:"1 1 90px"}}>
+              <div style={{fontSize:9,color:S.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
+                Estimated Earning
+                <span onClick={(e)=>{e.stopPropagation();setShowDayEarnInfo(v=>!v);}} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:13,height:13,borderRadius:"50%",border:"1px solid "+S.muted,color:S.muted,fontSize:8,cursor:"pointer",fontStyle:"italic",fontWeight:700,flexShrink:0}}>i</span>
+              </div>
+              <div style={{fontSize:18,fontWeight:700,color:S.amber,whiteSpace:"nowrap"}}>{fmt(dayAmount(d,rateConfig))}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            <StatSmall label="Manifested" value={d.manifested} />
+            <StatSmall label="Successful collection" value={d.successful_collections||0} color={S.green} />
+            <StatSmall label="Carry forward" value={d.carry_forward} color={S.amber} />
+            {d.distance_miles>0 && <StatSmall label="Distance" value={d.distance_miles+"mi"} color={S.cyan} />}
+            {d.duration_hours>0 && <StatSmall label="Duration" value={d.duration_hours+"h"+d.duration_minutes+"m"} color={S.cyan} />}
+          </div>
+          {showDayEarnInfo && (
+            <div style={{background:S.bg,border:"1px solid "+S.border,borderRadius:7,padding:"10px 12px",marginBottom:12,fontSize:11,color:S.muted,lineHeight:1.5}}>
+              This is an <b style={{color:S.text}}>estimate</b> based on the manifest and your rates. It excludes damaged, unmanifested and carried-forward parcels, so actual pay may differ.
+            </div>
+          )}
+          {(d.rounds||[]).map((r,ri)=>{
+            const live=calcRound(r.round,r.parcels,rateConfig);
+            return (
+              <div key={ri} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                  <b>Round {r.round}</b><span style={{color:S.amber}}>{fmt(live.total)}</span>
+                </div>
+                {live.lines.filter(l=>l.count>0).map((l,j)=>(
+                  <div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,color:S.muted,marginBottom:3}}>
+                    <span style={{flexShrink:0}}>{l.type}</span>
+                    <span style={{textAlign:"right"}}>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
+
 function StatSmall({ label, value, color }) {
   return (
-    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:7, padding:"7px 9px", flex:"1 1 70px", minWidth:0 }}>
-      <div style={{ fontSize:8, color:S.muted, textTransform:"uppercase", letterSpacing:0.8, marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{label}</div>
-      <div style={{ fontSize:13, fontWeight:700, color:color||S.text, overflowWrap:"anywhere" }}>{value}</div>
+    <div style={{ background:S.card, border:"1px solid "+S.border, borderRadius:7, padding:"7px 9px", flex:"1 1 64px" }}>
+      <div style={{ fontSize:8, color:S.muted, textTransform:"uppercase", letterSpacing:0.8, marginBottom:2, whiteSpace:"nowrap" }}>{label}</div>
+      <div style={{ fontSize:13, fontWeight:700, color:color||S.text, whiteSpace:"nowrap" }}>{value}</div>
     </div>
   );
 }
@@ -198,10 +262,10 @@ function PeriodNameEditor({ name, onSave }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(name);
   if (!editing) return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
-      <span style={{ fontWeight:700, fontSize:16 }}>{name}</span>
+    <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0 }}>
+      <span style={{ fontWeight:700, fontSize:16, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{name}</span>
       <div onClick={() => { setVal(name); setEditing(true); }}
-        style={{ marginLeft:"auto", background:S.card, border:"1px solid "+S.border, color:S.muted, padding:"3px 10px", borderRadius:4, cursor:"pointer", fontSize:11 }}>✏ edit</div>
+        style={{ marginLeft:"auto", flexShrink:0, background:S.card, border:"1px solid "+S.border, color:S.muted, padding:"3px 10px", borderRadius:4, cursor:"pointer", fontSize:11, whiteSpace:"nowrap" }}>✏ edit</div>
     </div>
   );
   return (
@@ -230,6 +294,7 @@ function App() {
   const [rateConfig, setRateConfig] = useState(() => loadRates());
   const [otherKey, setOtherKey] = useState(0);
   const [showEarnInfo, setShowEarnInfo] = useState(false);
+  const [showDayEarnInfo, setShowDayEarnInfo] = useState(false);
   const [light, setLight] = useState(() => { try { return localStorage.getItem("dt_light")==="1"; } catch { return false; } });
   const [manualDate, setManualDate] = useState(""); // DD/MM only
   const [manualList, setManualList] = useState([]); // [{round:"", counts:{type:val}}]
@@ -759,7 +824,7 @@ Successful collections: 2`}</div>
           <span style={{fontWeight:800,fontSize:15,letterSpacing:0.3}}>LBP Delivery Tracker</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div onClick={()=>setView("home")} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer"}}>← back</div>
+          <div onClick={()=>setView("home")} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"6px 14px",borderRadius:5,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap"}}>← back</div>
           <PeriodNameEditor name={activePeriod.name} onSave={newName=>{
             const periods=data.periods.map((p,pi)=>pi!==activePi?p:{...p,name:newName});
             persist({...data,periods}); showToast("Renamed");
@@ -814,52 +879,11 @@ Successful collections: 2`}</div>
       <Btn color="red" onClick={()=>{if(confirm("Delete period?"))deletePeriod();}} style={{marginBottom:18}}>DELETE PERIOD</Btn>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {activePeriod.days.length===0 && <div style={{color:S.muted,fontSize:12,textAlign:"center",padding:24}}>no days yet</div>}
-        {activePeriod.days.map((d,i)=>({d,i})).sort((a,b)=>dateKey(b.d.date)-dateKey(a.d.date)).map(({d,i})=>{
-          const di=i;
-          const open = expandedDay===di;
-          return (
-            <div key={di} onClick={()=>setExpandedDay(open?null:di)} style={{background:S.panel,border:"1px solid "+(open?S.cyan+"66":S.border),borderRadius:10,padding:"12px 14px",cursor:"pointer"}}>
-              <div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <span style={{fontWeight:700}}>{open?"▾ ":"▸ "}{d.date}</span>
-                  <div onClick={(e)=>{e.stopPropagation();if(confirm("Delete?"))deleteDay(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
-                </div>
-                <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:12}}>
-                  <span style={{color:S.muted}}>manifest <b style={{color:S.text}}>{d.manifested}</b></span>
-                  <span style={{color:S.green}}>✓{d.successful} ({pct(d.successful,d.manifested)})</span>
-                  <span style={{color:S.amber}}>cf{d.carry_forward}</span>
-                  <span style={{color:S.amber,fontWeight:600}}>{fmt(dayAmount(d,rateConfig))}</span>
-                  {d.distance_miles>0 && <span style={{color:S.cyan}}>{d.distance_miles}mi {d.duration_hours}h{d.duration_minutes}m</span>}
-                </div>
-              </div>
-              {open && (
-                <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid "+S.border}}>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-                    <Stat label="Collection" value={d.successful_collections||0} color={S.cyan} />
-                    {d.distance_miles>0 && <Stat label="Miles" value={d.distance_miles+"mi"} color={S.cyan} />}
-                    {d.duration_hours>0 && <Stat label="Drive" value={d.duration_hours+"h"+d.duration_minutes+"m"} color={S.cyan} />}
-                  </div>
-                  {(d.rounds||[]).map((r,ri)=>{
-                    const live=calcRound(r.round,r.parcels,rateConfig);
-                    return (
-                      <div key={ri} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                          <b>Round {r.round}</b><span style={{color:S.amber}}>{fmt(live.total)}</span>
-                        </div>
-                        {live.lines.filter(l=>l.count>0).map((l,j)=>(
-                          <div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,color:S.muted,marginBottom:3}}>
-                            <span style={{flexShrink:0}}>{l.type}</span>
-                            <span style={{textAlign:"right"}}>{l.count} × £{l.rate.toFixed(2)} = <b style={{color:S.text}}>£{l.sub.toFixed(2)}</b></span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {activePeriod.days.map((d,i)=>({d,i})).sort((a,b)=>dateKey(b.d.date)-dateKey(a.d.date)).map(({d,i})=>(
+          <DayCard key={d.date} d={d} di={i} open={expandedDay===i}
+            onToggle={setExpandedDay} onDelete={deleteDay} rateConfig={rateConfig}
+            showDayEarnInfo={showDayEarnInfo} setShowDayEarnInfo={setShowDayEarnInfo} />
+        ))}
       </div>
     </>);
   }
@@ -1084,9 +1108,9 @@ Successful collections: 2`}</div>
             </div>
             {!hasRate(m.round_number) && <div style={{color:S.red,fontSize:11,marginBottom:8}}>⚠ No rate set for this round</div>}
             {lines.filter(l=>l.count>0).map((l,j)=>(
-              <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
-                <span style={{color:S.text}}>{l.type} <span style={{color:S.cyan}}>×{l.count}</span></span>
-                <span style={{color:S.muted}}>£{l.rate.toFixed(2)} = <b style={{color:S.amber}}>£{l.sub.toFixed(2)}</b></span>
+              <div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,marginBottom:4}}>
+                <span style={{color:S.text,flexShrink:0}}>{l.type} <span style={{color:S.cyan}}>×{l.count}</span></span>
+                <span style={{color:S.muted,textAlign:"right"}}>£{l.rate.toFixed(2)} = <b style={{color:S.amber}}>£{l.sub.toFixed(2)}</b></span>
               </div>
             ))}
             {lines.filter(l=>l.count>0).length===0 && <div style={{color:S.red,fontSize:11}}>⚠ No parcel counts found</div>}
@@ -1104,8 +1128,8 @@ Successful collections: 2`}</div>
               <span style={{color:S.muted,fontSize:12}}>total {grandCount}</span>
             </div>
             {Object.entries(combined).map(([type,count],j)=>(
-              <div key={j} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
-                <span style={{color:S.text}}>{type}</span><span style={{color:S.cyan}}>×{count}</span>
+              <div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,marginBottom:3}}>
+                <span style={{color:S.text,flexShrink:0}}>{type}</span><span style={{color:S.cyan}}>×{count}</span>
               </div>
             ))}
           </div>
