@@ -233,12 +233,21 @@ const DayCard = React.memo(function DayCard({ d, di, open, onToggle, onDelete, o
           )}
           {(d.isSunday || (Number(d.topUp)||0)>0) && (
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10,fontSize:11}}>
-              {d.isSunday && <span style={{background:S.cyan+"22",color:S.cyan,borderRadius:5,padding:"3px 9px",fontWeight:700}}>☀ Sunday rates</span>}
+              {d.isSunday && (() => {
+                let wk=0, sun=0;
+                (d.rounds||[]).forEach(r => { wk+=calcRound(r.round,r.parcels,rateConfig,false).total; sun+=calcRound(r.round,r.parcels,rateConfig,true).total; });
+                const enh=Math.round((sun-wk)*100)/100;
+                return (<>
+                  <span style={{background:S.cyan+"22",color:S.cyan,borderRadius:5,padding:"3px 9px",fontWeight:700}}>☀ Sunday rates</span>
+                  <span style={{background:S.bg,border:"1px solid "+S.border,color:S.muted,borderRadius:5,padding:"3px 9px",fontWeight:700}}>Weekday rate {fmt(wk)}</span>
+                  <span style={{background:S.amber+"22",color:S.amber,borderRadius:5,padding:"3px 9px",fontWeight:700}}>+ Enhancement {fmt(enh)}</span>
+                </>);
+              })()}
               {(Number(d.topUp)||0)>0 && <span style={{background:S.amber+"22",color:S.amber,borderRadius:5,padding:"3px 9px",fontWeight:700}}>+ Top up {fmt(Number(d.topUp))}{d.topUpLabel?" · "+d.topUpLabel:""}</span>}
             </div>
           )}
           {(d.rounds||[]).map((r,ri)=>{
-            const live=calcRound(r.round,r.parcels,rateConfig,d.isSunday);
+            const live=calcRound(r.round,r.parcels,rateConfig,false);
             return (
               <div key={ri} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
@@ -997,11 +1006,6 @@ Successful collections: 2`}</div>
             <span onClick={()=>setShowEarnInfo(v=>!v)} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:14,height:14,borderRadius:"50%",border:"1px solid "+S.muted,color:S.muted,fontSize:9,cursor:"pointer",fontStyle:"italic",fontWeight:700,flexShrink:0}}>i</span>
           </div>
           <div style={{fontSize:28,fontWeight:800,color:S.amber,whiteSpace:"nowrap"}}>{fmt(s.amount)}</div>
-          {s.hasSunday && (
-            <div style={{fontSize:11,color:S.muted,marginTop:6,lineHeight:1.4}}>
-              ☀ Sunday delivered {s.sundayParcels} · enhancement <b style={{color:S.cyan}}>{fmt(s.sundayEnh)}</b>
-            </div>
-          )}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
           <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:7,padding:"6px 10px",minWidth:96}}>
@@ -1014,6 +1018,11 @@ Successful collections: 2`}</div>
           </div>
         </div>
       </div>
+      {s.hasSunday && (
+        <div style={{background:S.amber+"12",border:"1px solid "+S.amber+"33",borderRadius:8,padding:"9px 14px",marginBottom:8,fontSize:12,color:S.text}}>
+          ☀ Sunday delivered <b>{s.sundayParcels}</b> · enhancement <b style={{color:S.amber}}>{fmt(s.sundayEnh)}</b>
+        </div>
+      )}
       {showEarnInfo && (
         <div style={{background:S.bg,border:"1px solid "+S.border,borderRadius:7,padding:"10px 12px",marginBottom:8,fontSize:11,color:S.muted,lineHeight:1.5}}>
           This is an <b style={{color:S.text}}>estimate</b> based on your manifest data and the rates you set. It excludes damaged, unmanifested and carried-forward parcels, so your actual pay may differ.
