@@ -65,24 +65,24 @@ function loadRates() {
     if (r) {
       const parsed = JSON.parse(r);
       // migrate old format {default, special} -> {rounds}
-      if (parsed.rounds) return parsed;
+      if (parsed.rounds) return { sundayRounds:{}, ...parsed };
       const rounds = {...(parsed.special||{})};
-      return { rounds };
+      return { rounds, sundayRounds:{} };
     }
   } catch {}
-  return { rounds: {} };
+  return { rounds: {}, sundayRounds: {} };
 }
 function saveRates(r) {
   try { localStorage.setItem("delivery_rates", JSON.stringify(r)); } catch {}
 }
 
-function calcRound(roundNum, parcels, rateConfig) {
-  const rates = (rateConfig?.rounds?.[roundNum]) || {};
+function calcRound(roundNum, parcels, rateConfig, sunday) {
+  const rates = (sunday ? rateConfig?.sundayRounds?.[roundNum] : rateConfig?.rounds?.[roundNum]) || {};
   let total = 0;
   const lines = [];
   for (const [type, count] of Object.entries(parcels)) {
     if (!count) continue;
-    const rate = rates[type] ?? 0;
+    const rate = rates[type] ?? (sunday ? 1 : 0);
     const sub = Math.round(count * rate * 100) / 100;
     lines.push({ type, count, rate, sub });
     total += sub;
@@ -167,7 +167,8 @@ const dateKey = (s) => { const m=(s||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
 // Live recompute a day's total from stored parcels + current rates
 function dayAmount(d, rateConfig) {
   let t = 0;
-  (d.rounds||[]).forEach(r => { t += calcRound(r.round, r.parcels, rateConfig).total; });
+  (d.rounds||[]).forEach(r => { t += calcRound(r.round, r.parcels, rateConfig, d.isSunday).total; });
+  t += Number(d.topUp)||0;
   return Math.round(t*100)/100;
 }
 
@@ -186,13 +187,16 @@ function Stat({ label, value, color }) {
   );
 }
 
-const DayCard = React.memo(function DayCard({ d, di, open, onToggle, onDelete, rateConfig, showDayEarnInfo, setShowDayEarnInfo }) {
+const DayCard = React.memo(function DayCard({ d, di, open, onToggle, onDelete, onEdit, rateConfig, showDayEarnInfo, setShowDayEarnInfo }) {
   return (
     <div onClick={()=>onToggle(open?null:di)} style={{background:S.panel,border:"1px solid "+(open?S.cyan+"66":S.border),borderRadius:10,padding:"12px 14px",cursor:"pointer"}}>
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
           <span style={{fontWeight:700}}>{open?"▾ ":"▸ "}{d.date}</span>
-          <div onClick={(e)=>{e.stopPropagation();if(confirm("Delete?"))onDelete(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+          <div style={{display:"flex",gap:6}}>
+            <div onClick={(e)=>{e.stopPropagation();onEdit(di);}} style={{background:S.card,border:"1px solid "+S.border,color:S.muted,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>✏ edit</div>
+            <div onClick={(e)=>{e.stopPropagation();if(confirm("Delete?"))onDelete(di);}} style={{background:S.red+"20",color:S.red,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+          </div>
         </div>
         {!open && (
           <div style={{fontSize:12,lineHeight:1.7}}>
@@ -227,8 +231,14 @@ const DayCard = React.memo(function DayCard({ d, di, open, onToggle, onDelete, r
               This is an <b style={{color:S.text}}>estimate</b> based on the manifest and your rates. It excludes damaged, unmanifested and carried-forward parcels, so actual pay may differ.
             </div>
           )}
+          {(d.isSunday || (Number(d.topUp)||0)>0) && (
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10,fontSize:11}}>
+              {d.isSunday && <span style={{background:S.cyan+"22",color:S.cyan,borderRadius:5,padding:"3px 9px",fontWeight:700}}>☀ Sunday rates</span>}
+              {(Number(d.topUp)||0)>0 && <span style={{background:S.amber+"22",color:S.amber,borderRadius:5,padding:"3px 9px",fontWeight:700}}>+ Top up {fmt(Number(d.topUp))}{d.topUpLabel?" · "+d.topUpLabel:""}</span>}
+            </div>
+          )}
           {(d.rounds||[]).map((r,ri)=>{
-            const live=calcRound(r.round,r.parcels,rateConfig);
+            const live=calcRound(r.round,r.parcels,rateConfig,d.isSunday);
             return (
               <div key={ri} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
@@ -290,9 +300,14 @@ function App() {
   const [pasteText, setPasteText] = useState("");
   const [parseError, setParseError] = useState(null);
   const [parsed, setParsed] = useState(null);
+  const [dayIsSunday, setDayIsSunday] = useState(false);
+  const [dayTopUp, setDayTopUp] = useState("");
+  const [dayTopUpLabel, setDayTopUpLabel] = useState("");
+  const [showTopUp, setShowTopUp] = useState(false);
   const [periodName, setPeriodName] = useState("");
   const [rateConfig, setRateConfig] = useState(() => loadRates());
   const [otherKey, setOtherKey] = useState(0);
+  const [sundayOpen, setSundayOpen] = useState({});
   const [showEarnInfo, setShowEarnInfo] = useState(false);
   const [showDayEarnInfo, setShowDayEarnInfo] = useState(false);
   const [light, setLight] = useState(() => { try { return localStorage.getItem("dt_light")==="1"; } catch { return false; } });
@@ -442,11 +457,13 @@ function App() {
     let manifested=0, amount=0;
     const rounds=[];
     (parsed.manifests||[]).forEach(m => {
-      const {total,lines}=calcRound(m.round_number,m.parcels,rateConfig);
+      const {total,lines}=calcRound(m.round_number,m.parcels,rateConfig,dayIsSunday);
       const cnt=Object.values(m.parcels).reduce((a,v)=>a+(v||0),0);
       manifested+=cnt; amount+=total;
       rounds.push({round:m.round_number,parcels:m.parcels,subtotal:total,lines});
     });
+    const topUpNum = Number(dayTopUp)||0;
+    amount += topUpNum;
     const dayObj = {
       date:parsed.date, manifested,
       successful:parsed.day_summary?.successful||0,
@@ -456,6 +473,7 @@ function App() {
       distance_miles:parsed.distance_miles||0,
       duration_hours:parsed.duration_hours||0,
       duration_minutes:parsed.duration_minutes||0,
+      isSunday:dayIsSunday, topUp:topUpNum, topUpLabel:dayTopUpLabel.trim(),
       amount:Math.round(amount*100)/100, rounds, savedAt:Date.now(),
     };
     const periods = data.periods.map((p,pi) => {
@@ -466,6 +484,7 @@ function App() {
     persist({...data,periods});
     showToast("Saved!");
     setPasteText(""); setParsed(null);
+    setDayIsSunday(false); setDayTopUp(""); setDayTopUpLabel(""); setShowTopUp(false);
     setView("period");
   }
 
@@ -485,6 +504,32 @@ function App() {
     setManualList([{round:"", counts:{...blank}}]);
     setManualDay({successful:"",carry_forward:"",cannot_deliver:""});
     setManualDist({miles:"",hours:""});
+    setDayIsSunday(false); setDayTopUp(""); setDayTopUpLabel(""); setShowTopUp(false);
+  }
+
+  function editDay(di) {
+    const d = activePeriod?.days?.[di];
+    if(!d) return;
+    // date DD/MM/YYYY -> DDMM for the manual input
+    const dm = (d.date||"").match(/(\d{2})\/(\d{2})/);
+    setManualDate(dm ? dm[1]+dm[2] : "");
+    const list = (d.rounds||[]).map(r => {
+      const counts={}; PARCEL_TYPE_LIST.forEach(t=>counts[t]= r.parcels?.[t] ? String(r.parcels[t]) : "");
+      return { round:String(r.round), counts };
+    });
+    setManualList(list.length?list:[{round:"",counts:(()=>{const b={};PARCEL_TYPE_LIST.forEach(t=>b[t]="");return b;})()}]);
+    setManualDay({
+      successful: d.successful?String(d.successful):"",
+      carry_forward: d.carry_forward?String(d.carry_forward):"",
+      cannot_deliver: d.cannot_deliver?String(d.cannot_deliver):"",
+    });
+    const hoursDec = (d.duration_hours||0) + (d.duration_minutes||0)/60;
+    setManualDist({ miles: d.distance_miles?String(d.distance_miles):"", hours: hoursDec?String(Math.round(hoursDec*100)/100):"" });
+    setDayIsSunday(!!d.isSunday);
+    setDayTopUp((Number(d.topUp)||0)>0 ? String(d.topUp) : "");
+    setDayTopUpLabel(d.topUpLabel||"");
+    setShowTopUp((Number(d.topUp)||0)>0);
+    setView("manual");
   }
 
   function saveManual() {
@@ -516,7 +561,7 @@ function App() {
       const rn=parseInt(r.round.trim());
       const parcels={};
       PARCEL_TYPE_LIST.forEach(t => { parcels[t]=parseInt(r.counts[t])||0; });
-      const {total,lines}=calcRound(rn,parcels,rateConfig);
+      const {total,lines}=calcRound(rn,parcels,rateConfig,dayIsSunday);
       const cnt=Object.values(parcels).reduce((a,v)=>a+(v||0),0);
       manifested+=cnt; amount+=total;
       rounds.push({round:rn,parcels,subtotal:total,lines});
@@ -528,6 +573,8 @@ function App() {
     const hoursDec = manualDist.hours!=="" ? parseFloat(manualDist.hours) : (avg?avg.hours:0);
     const dh = Math.floor(hoursDec);
     const dmins = Math.round((hoursDec-dh)*60);
+    const topUpNum = Number(dayTopUp)||0;
+    amount += topUpNum;
 
     const dayObj = {
       date:fullDate, manifested,
@@ -536,6 +583,7 @@ function App() {
       cannot_deliver:parseInt(manualDay.cannot_deliver)||0,
       distance_miles:Math.round((miles||0)*100)/100,
       duration_hours:dh||0, duration_minutes:dmins||0,
+      isSunday:dayIsSunday, topUp:topUpNum, topUpLabel:dayTopUpLabel.trim(),
       amount:Math.round(amount*100)/100, rounds, savedAt:Date.now(),
     };
     const periods = data.periods.map((p,pi) => {
@@ -545,6 +593,7 @@ function App() {
     });
     persist({...data,periods});
     showToast("Saved!");
+    setDayIsSunday(false); setDayTopUp(""); setDayTopUpLabel(""); setShowTopUp(false);
     setView("period");
   }
 
@@ -716,7 +765,19 @@ Successful collections: 2`}</div>
     };
     const removeRound = (round) => {
       const r = {...rounds}; delete r[round];
-      const nc = {...rateConfig, rounds:r};
+      const sr = {...(rateConfig.sundayRounds||{})}; delete sr[round];
+      const nc = {...rateConfig, rounds:r, sundayRounds:sr};
+      setRateConfig(nc); saveRates(nc);
+    };
+    const sundayRounds = rateConfig.sundayRounds || {};
+    // Sunday rates default to £1 for every type until the user changes them
+    const sundayRateFor = (round, type) => {
+      const sr = sundayRounds[round];
+      return (sr && sr[type]!=null) ? sr[type] : 1;
+    };
+    const updateSundayRate = (round, type, val) => {
+      const base = sundayRounds[round] || {};
+      const nc = {...rateConfig, sundayRounds:{...sundayRounds, [round]:{...base, [type]: parseFloat(val)||0}}};
       setRateConfig(nc); saveRates(nc);
     };
     const roundKeys = Object.keys(rounds);
@@ -753,6 +814,24 @@ Successful collections: 2`}</div>
                 onChange={e=>updateRate(round,type,e.target.value)} style={inp} />
             </div>
           ))}
+
+          <div style={{borderTop:"1px solid "+S.border,margin:"12px 0"}}></div>
+          <div onClick={()=>setSundayOpen(o=>({...o,[round]:!o[round]}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+            <span style={{fontWeight:700,color:S.cyan,fontSize:13}}>☀ Sunday rates <span style={{color:S.muted,fontWeight:400,fontSize:11}}>(optional)</span></span>
+            <span style={{color:S.muted}}>{sundayOpen[round]?"▾":"▸"}</span>
+          </div>
+          {sundayOpen[round] && (
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:10.5,color:S.muted,marginBottom:10,lineHeight:1.5}}>Defaults to £1.00 each. Tick "Sunday" on a day to use these instead. Adjust any type below.</div>
+              {PARCEL_TYPE_LIST.filter(t=>t!=="Collection").map(type=>(
+                <div key={"sun_"+type} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                  <span style={{flex:1,fontSize:13,color:S.text}}>{type}</span>
+                  <input type="number" step="0.01" inputMode="decimal" defaultValue={sundayRateFor(round,type)}
+                    onChange={e=>updateSundayRate(round,type,e.target.value)} style={inp} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
 
@@ -896,14 +975,14 @@ Successful collections: 2`}</div>
           </div>
         </div>
       )}
-      <Btn onClick={()=>setView("paste")} style={{marginBottom:8,background:"#97D3CD",color:"#0C2C47"}}>📋 Paste Manifest Text</Btn>
+      <Btn onClick={()=>{ setDayIsSunday(false); setDayTopUp(""); setDayTopUpLabel(""); setShowTopUp(false); setView("paste"); }} style={{marginBottom:8,background:"#97D3CD",color:"#0C2C47"}}>📋 Paste Manifest Text</Btn>
       <Btn onClick={()=>{ initManual(); setView("manual"); }} style={{marginBottom:8,background:"#97D3CD",color:"#0C2C47"}}>✏️ Manual Entry (no manifest)</Btn>
       <Btn color="red" onClick={()=>{if(confirm("Delete period?"))deletePeriod();}} style={{marginBottom:18}}>DELETE PERIOD</Btn>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {activePeriod.days.length===0 && <div style={{color:S.muted,fontSize:12,textAlign:"center",padding:24}}>no days yet</div>}
         {activePeriod.days.map((d,i)=>({d,i})).sort((a,b)=>dateKey(b.d.date)-dateKey(a.d.date)).map(({d,i})=>(
           <DayCard key={d.date} d={d} di={i} open={expandedDay===i}
-            onToggle={setExpandedDay} onDelete={deleteDay} rateConfig={rateConfig}
+            onToggle={setExpandedDay} onDelete={deleteDay} onEdit={editDay} rateConfig={rateConfig}
             showDayEarnInfo={showDayEarnInfo} setShowDayEarnInfo={setShowDayEarnInfo} />
         ))}
       </div>
@@ -973,6 +1052,23 @@ Successful collections: 2`}</div>
           <input type="number" min="0" step="0.1" value={manualDist.hours} onChange={e=>setManualDist(d=>({...d,hours:e.target.value}))} placeholder={avg?String(avg.hours):"0"} style={inp} />
         </div>
       </div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:10}}>
+        <div onClick={()=>setDayIsSunday(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+          <span style={{width:22,height:22,borderRadius:5,border:"2px solid "+S.cyan,background:dayIsSunday?S.cyan:"transparent",color:"#0C2C47",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700}}>{dayIsSunday?"✓":""}</span>
+          <span style={{fontSize:13}}>This is a <b style={{color:S.amber}}>Sunday</b></span>
+        </div>
+        <div onClick={()=>setShowTopUp(v=>!v)} style={{background:S.card,border:"1px solid "+S.border,borderRadius:6,padding:"6px 12px",fontSize:11.5,cursor:"pointer",whiteSpace:"nowrap"}}>+ Top up</div>
+      </div>
+      {showTopUp && (
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,background:S.bg,border:"1px solid "+S.border,borderRadius:7,padding:"10px"}}>
+          <span style={{color:S.muted,whiteSpace:"nowrap",fontSize:13}}>Top up £</span>
+          <input type="number" step="0.01" inputMode="decimal" value={dayTopUp} onChange={e=>setDayTopUp(e.target.value)} placeholder="0.00"
+            style={{width:80,background:S.card,border:"1px solid "+S.border,color:S.text,borderRadius:6,padding:"8px 10px",fontSize:14,textAlign:"right",fontFamily:"inherit",outline:"none"}} />
+          <input type="text" value={dayTopUpLabel} onChange={e=>setDayTopUpLabel(e.target.value)} placeholder="reason (e.g. RTD bonus)"
+            style={{flex:1,minWidth:0,background:S.card,border:"1px solid "+S.border,color:S.text,borderRadius:6,padding:"8px 10px",fontSize:13,fontFamily:"inherit",outline:"none"}} />
+        </div>
+      )}
 
       <Btn color="green" onClick={saveManual}>✓ SAVE</Btn>
     </>);
@@ -1099,7 +1195,8 @@ Successful collections: 2`}</div>
   // CONFIRM VIEW
   if (view==="confirm" && parsed) {
     let totalAmount=0;
-    (parsed.manifests||[]).forEach(m=>{totalAmount+=calcRound(m.round_number,m.parcels,rateConfig).total;});
+    (parsed.manifests||[]).forEach(m=>{totalAmount+=calcRound(m.round_number,m.parcels,rateConfig,dayIsSunday).total;});
+    totalAmount += Number(dayTopUp)||0;
     const knownRounds = Object.keys(rateConfig.rounds||{});
     const hasRate = rn => knownRounds.includes(String(rn));
     const unknownRounds = (parsed.manifests||[]).map(m=>m.round_number).filter(rn=>!hasRate(rn));
@@ -1120,8 +1217,25 @@ Successful collections: 2`}</div>
           {parsed.duration_hours!=null && <span style={{color:S.cyan}}>⏱ {parsed.duration_hours}h {parsed.duration_minutes}m</span>}
         </div>
       </div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:10}}>
+        <div onClick={()=>setDayIsSunday(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+          <span style={{width:22,height:22,borderRadius:5,border:"2px solid "+S.cyan,background:dayIsSunday?S.cyan:"transparent",color:"#0C2C47",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700}}>{dayIsSunday?"✓":""}</span>
+          <span style={{fontSize:13}}>This is a <b style={{color:S.amber}}>Sunday</b></span>
+        </div>
+        <div onClick={()=>setShowTopUp(v=>!v)} style={{background:S.card,border:"1px solid "+S.border,borderRadius:6,padding:"6px 12px",fontSize:11.5,cursor:"pointer",whiteSpace:"nowrap"}}>+ Top up</div>
+      </div>
+      {showTopUp && (
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,background:S.bg,border:"1px solid "+S.border,borderRadius:7,padding:"10px"}}>
+          <span style={{color:S.muted,whiteSpace:"nowrap",fontSize:13}}>Top up £</span>
+          <input type="number" step="0.01" inputMode="decimal" value={dayTopUp} onChange={e=>setDayTopUp(e.target.value)} placeholder="0.00"
+            style={{width:80,background:S.card,border:"1px solid "+S.border,color:S.text,borderRadius:6,padding:"8px 10px",fontSize:14,textAlign:"right",fontFamily:"inherit",outline:"none"}} />
+          <input type="text" value={dayTopUpLabel} onChange={e=>setDayTopUpLabel(e.target.value)} placeholder="reason (e.g. RTD bonus)"
+            style={{flex:1,minWidth:0,background:S.card,border:"1px solid "+S.border,color:S.text,borderRadius:6,padding:"8px 10px",fontSize:13,fontFamily:"inherit",outline:"none"}} />
+        </div>
+      )}
       {(parsed.manifests||[]).map((m,i)=>{
-        const {total,lines}=calcRound(m.round_number,m.parcels,rateConfig);
+        const {total,lines}=calcRound(m.round_number,m.parcels,rateConfig,dayIsSunday);
         return (
           <div key={i} style={{background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
@@ -1170,9 +1284,13 @@ Successful collections: 2`}</div>
           </div>
         </div>
       )}
-      <div style={{background:S.panel,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span style={{color:S.muted}}>Total Earnings</span>
-        <span style={{color:S.amber,fontWeight:700,fontSize:20}}>{fmt(totalAmount)}</span>
+      <div style={{background:S.panel,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+        {dayIsSunday && <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:S.muted,marginBottom:6}}><span>☀ Sunday rates applied</span></div>}
+        {(Number(dayTopUp)||0)>0 && <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:S.muted,marginBottom:6}}><span>+ Top up{dayTopUpLabel.trim()?" ("+dayTopUpLabel.trim()+")":""}</span><span style={{color:S.amber}}>{fmt(Number(dayTopUp))}</span></div>}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{color:S.muted}}>Total Earnings</span>
+          <span style={{color:S.amber,fontWeight:700,fontSize:20}}>{fmt(totalAmount)}</span>
+        </div>
       </div>
       {blockSave
         ? <>
