@@ -434,17 +434,30 @@ function App() {
 
   function pStats(p) {
     let total=0,success=0,failed=0,cf=0,amount=0,miles=0,mins=0,collections=0;
+    let sundayParcels=0, sundayEnh=0; let hasSunday=false;
     const types={};
     (p.days||[]).forEach(d => {
       total+=d.manifested||0; success+=d.successful||0; failed+=d.cannot_deliver||0;
       cf+=d.carry_forward||0; amount+=dayAmount(d,rateConfig); miles+=d.distance_miles||0;
       mins+=(d.duration_hours||0)*60+(d.duration_minutes||0);
       collections+=d.successful_collections||0;
+      if(d.isSunday){
+        hasSunday=true;
+        (d.rounds||[]).forEach(r => {
+          const cnt=Object.values(r.parcels||{}).reduce((a,v)=>a+(v||0),0);
+          sundayParcels+=cnt;
+          // enhancement = Sunday-rate pay minus weekday-rate pay for the same parcels
+          const sun=calcRound(r.round,r.parcels,rateConfig,true).total;
+          const wk=calcRound(r.round,r.parcels,rateConfig,false).total;
+          sundayEnh += (sun-wk);
+        });
+      }
       (d.rounds||[]).forEach(r => {
         Object.entries(r.parcels||{}).forEach(([t,c]) => { if(c>0) types[t]=(types[t]||0)+c; });
       });
     });
-    return {total,success,failed,cf,amount,miles:Math.round(miles*10)/10,mins,types,collections};
+    return {total,success,failed,cf,amount,miles:Math.round(miles*10)/10,mins,types,collections,
+      hasSunday, sundayParcels, sundayEnh:Math.round(sundayEnh*100)/100};
   }
 
   function doParse() {
@@ -984,6 +997,11 @@ Successful collections: 2`}</div>
             <span onClick={()=>setShowEarnInfo(v=>!v)} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:14,height:14,borderRadius:"50%",border:"1px solid "+S.muted,color:S.muted,fontSize:9,cursor:"pointer",fontStyle:"italic",fontWeight:700,flexShrink:0}}>i</span>
           </div>
           <div style={{fontSize:28,fontWeight:800,color:S.amber,whiteSpace:"nowrap"}}>{fmt(s.amount)}</div>
+          {s.hasSunday && (
+            <div style={{fontSize:11,color:S.muted,marginTop:6,lineHeight:1.4}}>
+              ☀ Sunday delivered {s.sundayParcels} · enhancement <b style={{color:S.cyan}}>{fmt(s.sundayEnh)}</b>
+            </div>
+          )}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
           <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:7,padding:"6px 10px",minWidth:96}}>
