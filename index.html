@@ -330,6 +330,10 @@ function App() {
   const [expandedDay, setExpandedDay] = useState(null);
   const [claimRounds, setClaimRounds] = useState([]);
   const [claimCopied, setClaimCopied] = useState({});
+  const [enquiries, setEnquiries] = useState(() => { try { return JSON.parse(localStorage.getItem("delivery_enquiries"))||[]; } catch { return []; } });
+  const [enqOpen, setEnqOpen] = useState(false);
+  const [enqPeriodOpen, setEnqPeriodOpen] = useState({});
+  const saveEnquiries = (list) => { setEnquiries(list); try { localStorage.setItem("delivery_enquiries", JSON.stringify(list)); } catch {} };
 
   function initClaim() {
     const knownRounds = Object.keys(rateConfig.rounds||{});
@@ -412,7 +416,7 @@ function App() {
   }, []);
 
   function exportData() {
-    const payload = { version:2, data, rates:rateConfig };
+    const payload = { version:2, data, rates:rateConfig, enquiries };
     const json = JSON.stringify(payload, null, 2);
     const blob = new Blob([json], {type:"application/json"});
     const url = URL.createObjectURL(blob);
@@ -427,13 +431,29 @@ function App() {
     reader.onload = ev => {
       try {
         const imported = JSON.parse(ev.target.result);
-        // v2 backup: { version, data, rates }. Old backup: the data object itself.
-        const restoredData = imported.version && imported.data ? imported.data : imported;
-        const restoredRates = imported.version && imported.rates ? imported.rates : null;
-        if(!restoredData.periods) throw new Error();
+        // v2 backup: { version, data, rates, enquiries }. Old backup: the data object itself.
+        const isWrapped = imported && imported.data && imported.data.periods;
+        const restoredData = isWrapped ? imported.data : imported;
+        if(!restoredData || !restoredData.periods) throw new Error();
         persist(restoredData);
-        if(restoredRates && restoredRates.rounds){ setRateConfig(restoredRates); saveRates(restoredRates); }
-        showToast("Imported "+restoredData.periods.length+" periods"+(restoredRates?" + rates":""));
+
+        // rates — ensure rounds + sundayRounds both exist so Sunday calc never breaks
+        let ratesMsg = "";
+        if(imported.rates && imported.rates.rounds){
+          const r = { rounds:{}, sundayRounds:{}, ...imported.rates };
+          if(!r.sundayRounds) r.sundayRounds = {};
+          setRateConfig(r); saveRates(r);
+          ratesMsg = " + rates";
+        }
+
+        // enquiries — invoice history & ongoing claims
+        let enqMsg = "";
+        if(Array.isArray(imported.enquiries)){
+          saveEnquiries(imported.enquiries);
+          enqMsg = imported.enquiries.length ? " + "+imported.enquiries.length+" invoices" : "";
+        }
+
+        showToast("Imported "+restoredData.periods.length+" periods"+ratesMsg+enqMsg);
       } catch { showToast("Invalid file", false); }
     };
     reader.readAsText(file);
@@ -1157,6 +1177,17 @@ Successful collections: 2`}</div>
     const removeClaimRound = (i) => setClaimRounds(L=>L.filter((_,idx)=>idx!==i));
     const updateClaim = (i,field,val) => setClaimRounds(L=>L.map((r,idx)=>idx===i?{...r,[field]:val}:r));
     const updateClaimCount = (i,type,val) => setClaimRounds(L=>L.map((r,idx)=>idx===i?{...r,counts:{...r.counts,[type]:val}}:r));
+    const saveEnquiry = (cr,result) => {
+      const e = { id:Date.now()+"_"+Math.random().toString(36).slice(2,6),
+        round:(cr.round||"").trim(), period:(cr.period||"").trim(), invoiceNo:(cr.invoiceNo||"").trim(),
+        shouldBe:result.calc, paid:result.paid, shortfall:result.shortfall,
+        date:new Date().toISOString().slice(0,10), ref:"",
+        status:result.shortfall>0?"open":"correct" };
+      saveEnquiries([e, ...enquiries]);
+      setEnqOpen(true);
+    };
+    const updateEnq = (id,field,val) => saveEnquiries(enquiries.map(e=>e.id===id?{...e,[field]:val}:e));
+    const removeEnq = (id) => saveEnquiries(enquiries.filter(e=>e.id!==id));
 
     return wrap(<>
       {topBar("🧾 Invoice Checker", ()=>setView("home"))}
@@ -1165,6 +1196,89 @@ Successful collections: 2`}</div>
         <b style={{color:S.amber}}>⚠ Check each round separately — do not combine rounds in one claim.</b>
         <div style={{color:S.muted,marginTop:4}}>Fill in one card per round. When a shortfall is found, copy the message and send it through the official channel.</div>
       </div>
+
+      {enquiries.length>0 && (() => {
+        // summary across all saved invoices
+        const openList = enquiries.filter(e=>e.status==="open");
+        const resolvedList = enquiries.filter(e=>e.status==="resolved");
+        const owed = Math.round(openList.reduce((a,e)=>a+(e.shortfall||0),0)*100)/100;
+        const recovered = Math.round(resolvedList.reduce((a,e)=>a+(e.shortfall||0),0)*100)/100;
+        // group by period
+        const groups = {};
+        enquiries.forEach(e => { const k=e.period||"—"; (groups[k]=groups[k]||[]).push(e); });
+        const periodKeys = Object.keys(groups).sort((a,b)=>(parseInt(b)||0)-(parseInt(a)||0));
+        return (
+        <div style={{marginBottom:14}}>
+          <div onClick={()=>setEnqOpen(o=>!o)} style={{cursor:"pointer",background:S.panel,border:"1px solid "+S.border,borderRadius:8,padding:"11px 14px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:openList.length||resolvedList.length?8:0}}>
+              <span style={{fontWeight:700,fontSize:13,color:S.text}}>📂 My invoices <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({enquiries.length} saved)</span></span>
+              <span style={{color:S.muted}}>{enqOpen?"▾":"▸"}</span>
+            </div>
+            {(openList.length>0 || resolvedList.length>0) && (
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:11}}>
+                {openList.length>0 && <span style={{background:S.amber+"22",color:S.amber,borderRadius:5,padding:"3px 9px",fontWeight:700}}>● {openList.length} ongoing · owed {fmt(owed)}</span>}
+                {resolvedList.length>0 && <span style={{background:S.green+"22",color:S.green,borderRadius:5,padding:"3px 9px",fontWeight:700}}>✓ {resolvedList.length} resolved · recovered {fmt(recovered)}</span>}
+              </div>
+            )}
+          </div>
+          {enqOpen && (
+            <div style={{marginTop:10}}>
+              {periodKeys.map(pk => {
+                const list = groups[pk];
+                const pOpen = enqPeriodOpen[pk];
+                const pOwed = Math.round(list.filter(e=>e.status==="open").reduce((a,e)=>a+(e.shortfall||0),0)*100)/100;
+                const pShort = list.filter(e=>e.shortfall>0).length;
+                return (
+                <div key={pk} style={{marginBottom:8}}>
+                  <div onClick={()=>setEnqPeriodOpen(o=>({...o,[pk]:!o[pk]}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"10px 14px"}}>
+                    <span style={{fontWeight:700,fontSize:13,color:S.cyan}}>📁 Period {pk} <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({list.length} {list.length>1?"rounds":"round"}{pShort>0?" · "+fmt(pOwed>0?pOwed:list.filter(e=>e.shortfall>0).reduce((a,e)=>a+e.shortfall,0))+" short":""})</span></span>
+                    <span style={{color:S.muted}}>{pOpen?"▾":"▸"}</span>
+                  </div>
+                  {pOpen && (
+                    <div style={{marginTop:8,paddingLeft:8}}>
+                      {list.map(e=>{
+                        const correct = e.status==="correct";
+                        return (
+                        <div key={e.id} style={{background:S.card,border:"1px solid "+(e.status==="resolved"||correct?S.green+"55":S.border),borderRadius:8,padding:"12px 14px",marginBottom:8}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                            <span style={{fontWeight:700,fontSize:13,color:S.cyan}}>Round {e.round||"—"}</span>
+                            <div onClick={()=>removeEnq(e.id)} style={{background:S.red+"20",color:S.red,padding:"3px 9px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+                          </div>
+                          {e.invoiceNo && <div style={{fontSize:11,color:S.muted,marginBottom:6,fontFamily:"monospace"}}>Invoice {e.invoiceNo}</div>}
+                          <div style={{display:"flex",gap:14,fontSize:12,color:S.muted,marginBottom:10,flexWrap:"wrap"}}>
+                            <span>Should be <b style={{color:S.text}}>{fmt(e.shouldBe)}</b></span>
+                            <span>Paid <b style={{color:S.text}}>{fmt(e.paid)}</b></span>
+                            <span>Shortfall <b style={{color:e.shortfall>0?S.red:S.green}}>{e.shortfall>0?fmt(e.shortfall):"None ✓"}</b></span>
+                          </div>
+                          {correct ? (
+                            <div style={{textAlign:"center",padding:"7px 0",borderRadius:5,fontSize:12,fontWeight:700,background:S.green+"18",color:S.green,border:"1px solid "+S.green+"44"}}>✓ Pay correct · {e.date}</div>
+                          ) : (
+                            <>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                                <span style={{fontSize:11,color:S.muted,whiteSpace:"nowrap"}}>Ref</span>
+                                <input type="text" value={e.ref} onChange={ev=>updateEnq(e.id,"ref",ev.target.value)} placeholder="Evri enquiry reference"
+                                  style={{flex:1,minWidth:0,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:12,borderRadius:5,padding:"6px 8px",outline:"none"}} />
+                              </div>
+                              <div onClick={()=>updateEnq(e.id,"status",e.status==="open"?"resolved":"open")}
+                                style={{textAlign:"center",padding:"7px 0",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:700,
+                                  background:e.status==="resolved"?S.green+"22":S.amber+"22",color:e.status==="resolved"?S.green:S.amber,border:"1px solid "+(e.status==="resolved"?S.green+"44":S.amber+"44")}}>
+                                {e.status==="resolved"?"✓ Resolved — tap to reopen":"● Open — tap when resolved"}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        );
+      })()}
 
       {claimRounds.map((cr,i)=>{
         const rn = (cr.round||"").trim();
@@ -1196,6 +1310,12 @@ Successful collections: 2`}</div>
                 <input type="text" inputMode="numeric" value={cr.period} onChange={e=>updateClaim(i,"period",e.target.value)} placeholder="e.g. 14"
                   style={{width:"100%",background:S.bg,border:"1px solid "+((cr.period||"").trim()?S.border:S.amber+"99"),color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none"}} />
               </div>
+            </div>
+
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:S.muted,marginBottom:4}}>Invoice number <span style={{color:S.muted}}>(optional)</span></div>
+              <input type="text" inputMode="numeric" value={cr.invoiceNo||""} onChange={e=>updateClaim(i,"invoiceNo",e.target.value)} placeholder="e.g. 158301000040"
+                style={{width:"100%",background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none"}} />
             </div>
 
             <div style={{fontSize:11,color:S.muted,marginBottom:8,fontWeight:600}}>Parcel counts from invoice:</div>
@@ -1237,8 +1357,12 @@ Successful collections: 2`}</div>
                   </>
                 )}
                 {result.shortfall<=0 && result.calc>0 && (
-                  <div style={{background:S.green+"18",border:"1px solid "+S.green+"44",borderRadius:6,padding:"10px",fontSize:12,color:S.green,textAlign:"center"}}>✓ Pay looks correct — no shortfall found.</div>
+                  <div style={{background:S.green+"18",border:"1px solid "+S.green+"44",borderRadius:6,padding:"10px",fontSize:12,color:S.green,textAlign:"center",marginBottom:8}}>✓ Pay looks correct — no shortfall found.</div>
                 )}
+                <div onClick={()=>saveEnquiry(cr,result)}
+                  style={{background:S.panel,border:"1px solid "+S.cyan+"66",color:S.cyan,padding:"9px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12.5,textAlign:"center"}}>
+                  {result.shortfall>0?"+ Save as enquiry to track":"+ Save to history"}
+                </div>
               </div>
             )}
             {!(cr.period||"").trim() && <div style={{marginTop:8,fontSize:10.5,color:S.amber}}>* Enter period number to generate claim text.</div>}
