@@ -1327,11 +1327,16 @@ Successful collections: 2`}</div>
                 {pOpen && <div style={{marginTop:8,paddingLeft:8}}>
                   {list.map(e=>(
                     <div key={e.id} style={{background:S.card,border:"1px solid "+(e.status==="resolved"?S.green+"55":S.amber+"44"),borderRadius:8,padding:"12px 14px",marginBottom:8}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                        <div>
-                          <div style={{fontSize:12,color:S.muted,fontFamily:"monospace",marginBottom:2}}>Invoice {e.invoiceNo||"—"}{e.ref?" · Ref "+e.ref:""}</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:12,color:S.muted,fontFamily:"monospace",marginBottom:4}}>
+                            Ref <b style={{color:S.text}}>{e.ref||"—"}</b> · Invoice <b style={{color:S.text}}>{e.invoiceNo||"—"}</b>
+                          </div>
+                          <div style={{fontSize:12,color:S.muted,marginBottom:4}}>
+                            Paid <b style={{color:S.text}}>{fmt(e.paid)}</b> · Should be <b style={{color:S.green}}>{fmt(e.shouldBe)}</b>
+                          </div>
                           <div style={{fontSize:12,color:S.muted}}>
-                            Should be <b style={{color:S.text}}>{fmt(e.shouldBe)}</b> · Paid <b style={{color:S.text}}>{fmt(e.paid)}</b> · Shortfall <b style={{color:S.red}}>{fmt(e.shortfall)}</b>
+                            Shortfall <b style={{color:S.red}}>{fmt(e.shortfall)}</b>
                           </div>
                         </div>
                         <div onClick={()=>removeEnq(e.id)} style={{background:S.red+"20",color:S.red,padding:"3px 9px",borderRadius:4,cursor:"pointer",fontSize:11,flexShrink:0,marginLeft:8}}>×</div>
