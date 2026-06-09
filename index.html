@@ -333,6 +333,8 @@ function App() {
   const [enquiries, setEnquiries] = useState(() => { try { return JSON.parse(localStorage.getItem("delivery_enquiries"))||[]; } catch { return []; } });
   const [enqOpen, setEnqOpen] = useState(false);
   const [enqPeriodOpen, setEnqPeriodOpen] = useState({});
+  const [refPopup, setRefPopup] = useState(null); // {id} when showing ref popup
+  const [refInput, setRefInput] = useState("");
   const saveEnquiries = (list) => { setEnquiries(list); try { localStorage.setItem("delivery_enquiries", JSON.stringify(list)); } catch {} };
 
   function initClaim() {
@@ -351,6 +353,7 @@ function App() {
   function buildClaimText(cr) {
     const rn = (cr.round||"").trim();
     const pn = (cr.period||"").trim();
+    const inv = (cr.invoiceNo||"").trim();
     const parcels = {};
     PARCEL_TYPE_LIST.forEach(t => { parcels[t] = parseInt(cr.counts[t])||0; });
     const { total: calc, lines } = calcRound(parseInt(rn)||rn, parcels, rateConfig);
@@ -363,7 +366,8 @@ function App() {
     const paid = Math.round((parseFloat(cr.paidAmount)||0)*100)/100;
     const shortfall = Math.round((calc - paid)*100)/100;
     const parcelStr = parts.join(", ");
-    const text = "Hi, I've checked round " + rn + " on period " + pn + ". Based on the parcels delivered \u2014 " + parcelStr + " \u2014 at the published rates, the total should be \u00a3" + calc.toFixed(2) + ". However, the amount paid was \u00a3" + paid.toFixed(2) + ", a shortfall of \u00a3" + shortfall.toFixed(2) + ". Could you please review and correct this payment? Thank you.";
+    const invPart = inv ? ", invoice " + inv : "";
+    const text = "Hi, I've checked round " + rn + " on period " + pn + invPart + ". Based on the parcels delivered \u2014 " + parcelStr + " \u2014 at the published rates, the total should be \u00a3" + calc.toFixed(2) + ". However, the amount paid was \u00a3" + paid.toFixed(2) + ", a shortfall of \u00a3" + shortfall.toFixed(2) + ". Could you please review and correct this payment? Thank you.";
     return { text, calc, paid, shortfall };
   }
 
@@ -1184,7 +1188,8 @@ Successful collections: 2`}</div>
         date:new Date().toISOString().slice(0,10), ref:"",
         status:result.shortfall>0?"open":"correct" };
       saveEnquiries([e, ...enquiries]);
-      setEnqOpen(true);
+      setRefInput("");
+      setRefPopup({id:e.id, hasClaim:result.shortfall>0});
     };
     const updateEnq = (id,field,val) => saveEnquiries(enquiries.map(e=>e.id===id?{...e,[field]:val}:e));
     const removeEnq = (id) => saveEnquiries(enquiries.filter(e=>e.id!==id));
@@ -1197,85 +1202,140 @@ Successful collections: 2`}</div>
         <div style={{color:S.muted,marginTop:4}}>Fill in one card per round. When a shortfall is found, copy the message and send it through the official channel.</div>
       </div>
 
-      {enquiries.length>0 && (() => {
-        // summary across all saved invoices
-        const openList = enquiries.filter(e=>e.status==="open");
-        const resolvedList = enquiries.filter(e=>e.status==="resolved");
+      {/* REF POPUP */}
+      {refPopup && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 20px"}}>
+          <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:12,padding:"20px",width:"100%",maxWidth:380}}>
+            <div style={{fontWeight:700,fontSize:14,color:S.cyan,marginBottom:6}}>Saved ✓</div>
+            {refPopup.hasClaim
+              ? <div style={{fontSize:12,color:S.muted,marginBottom:14,lineHeight:1.5}}>If you've already sent the claim to Evri, enter the reference number they gave you — or leave blank and add it later.</div>
+              : <div style={{fontSize:12,color:S.muted,marginBottom:14,lineHeight:1.5}}>Invoice saved to history.</div>
+            }
+            {refPopup.hasClaim && (
+              <input type="text" value={refInput} onChange={e=>setRefInput(e.target.value)}
+                placeholder="Evri enquiry reference (optional)"
+                style={{width:"100%",background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:6,padding:"8px 10px",outline:"none",marginBottom:12,boxSizing:"border-box"}} />
+            )}
+            <div onClick={()=>{
+              if(refInput.trim()) updateEnq(refPopup.id,"ref",refInput.trim());
+              setRefPopup(null);
+              setEnqOpen(true);
+              setTimeout(()=>{ try{ document.querySelector('[data-enqtop]').scrollIntoView({behavior:"smooth"}); }catch{} },100);
+            }} style={{background:S.cyan,color:"#000",padding:"10px 0",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13,textAlign:"center"}}>
+              Done — view record
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INVOICE HISTORY */}
+      {enquiries.filter(e=>e.status==="correct").length>0 && (()=>{
+        const hist = enquiries.filter(e=>e.status==="correct");
+        const groups = {};
+        hist.forEach(e=>{ const k=e.period||"—"; (groups[k]=groups[k]||[]).push(e); });
+        const periodKeys = Object.keys(groups).sort((a,b)=>(parseInt(b)||0)-(parseInt(a)||0));
+        const [hOpen, setHOpen] = React.useState(false);
+        return (
+        <div style={{marginBottom:10}} data-enqtop>
+          <div onClick={()=>setHOpen(o=>!o)} style={{cursor:"pointer",background:S.panel,border:"1px solid "+S.border,borderRadius:8,padding:"11px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{fontWeight:700,fontSize:13,color:S.text}}>🗂 Invoice History <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({hist.length} saved)</span></span>
+            <span style={{color:S.muted}}>{hOpen?"▾":"▸"}</span>
+          </div>
+          {hOpen && <div style={{marginTop:8}}>
+            {periodKeys.map(pk=>{
+              const list=groups[pk];
+              const [pOpen,setPOpen]=React.useState(false);
+              return (<div key={pk} style={{marginBottom:6}}>
+                <div onClick={()=>setPOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"9px 14px"}}>
+                  <span style={{fontWeight:700,fontSize:13,color:S.text}}>📁 Period {pk} <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({list.length} {list.length>1?"rounds":"round"})</span></span>
+                  <span style={{color:S.muted}}>{pOpen?"▾":"▸"}</span>
+                </div>
+                {pOpen && <div style={{marginTop:6,paddingLeft:8}}>
+                  {list.map(e=>(
+                    <div key={e.id} style={{background:S.card,border:"1px solid "+S.green+"55",borderRadius:8,padding:"12px 14px",marginBottom:6}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        <span style={{fontWeight:700,fontSize:13,color:S.text}}>Round {e.round||"—"}</span>
+                        <div onClick={()=>removeEnq(e.id)} style={{background:S.red+"20",color:S.red,padding:"3px 9px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+                      </div>
+                      {e.invoiceNo && <div style={{fontSize:11,color:S.muted,marginBottom:4,fontFamily:"monospace"}}>Invoice {e.invoiceNo}</div>}
+                      <div style={{display:"flex",gap:12,fontSize:12,color:S.muted,flexWrap:"wrap"}}>
+                        <span>Should be <b style={{color:S.text}}>{fmt(e.shouldBe)}</b></span>
+                        <span>Paid <b style={{color:S.text}}>{fmt(e.paid)}</b></span>
+                      </div>
+                      <div style={{marginTop:8,textAlign:"center",padding:"6px 0",borderRadius:5,fontSize:12,fontWeight:700,background:S.green+"18",color:S.green,border:"1px solid "+S.green+"44"}}>✓ Pay correct · {e.date}</div>
+                    </div>
+                  ))}
+                </div>}
+              </div>);
+            })}
+          </div>}
+        </div>
+        );
+      })()}
+
+      {/* CLAIMS TRACKER */}
+      {enquiries.filter(e=>e.status!=="correct").length>0 && (()=>{
+        const claims = enquiries.filter(e=>e.status!=="correct");
+        const openList = claims.filter(e=>e.status==="open");
+        const resolvedList = claims.filter(e=>e.status==="resolved");
         const owed = Math.round(openList.reduce((a,e)=>a+(e.shortfall||0),0)*100)/100;
         const recovered = Math.round(resolvedList.reduce((a,e)=>a+(e.shortfall||0),0)*100)/100;
-        // group by period
         const groups = {};
-        enquiries.forEach(e => { const k=e.period||"—"; (groups[k]=groups[k]||[]).push(e); });
+        claims.forEach(e=>{ const k=e.period||"—"; (groups[k]=groups[k]||[]).push(e); });
         const periodKeys = Object.keys(groups).sort((a,b)=>(parseInt(b)||0)-(parseInt(a)||0));
         return (
-        <div style={{marginBottom:14}}>
+        <div style={{marginBottom:10}} data-enqtop>
           <div onClick={()=>setEnqOpen(o=>!o)} style={{cursor:"pointer",background:S.panel,border:"1px solid "+S.border,borderRadius:8,padding:"11px 14px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:openList.length||resolvedList.length?8:0}}>
-              <span style={{fontWeight:700,fontSize:13,color:S.text}}>📂 My invoices <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({enquiries.length} saved)</span></span>
+              <span style={{fontWeight:700,fontSize:13,color:S.text}}>📂 Claims <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({claims.length} total)</span></span>
               <span style={{color:S.muted}}>{enqOpen?"▾":"▸"}</span>
             </div>
-            {(openList.length>0 || resolvedList.length>0) && (
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:11}}>
-                {openList.length>0 && <span style={{background:S.amber+"22",color:S.amber,borderRadius:5,padding:"3px 9px",fontWeight:700}}>● {openList.length} ongoing · owed {fmt(owed)}</span>}
-                {resolvedList.length>0 && <span style={{background:S.green+"22",color:S.green,borderRadius:5,padding:"3px 9px",fontWeight:700}}>✓ {resolvedList.length} resolved · recovered {fmt(recovered)}</span>}
-              </div>
-            )}
-          </div>
-          {enqOpen && (
-            <div style={{marginTop:10}}>
-              {periodKeys.map(pk => {
-                const list = groups[pk];
-                const pOpen = enqPeriodOpen[pk];
-                const pOwed = Math.round(list.filter(e=>e.status==="open").reduce((a,e)=>a+(e.shortfall||0),0)*100)/100;
-                const pShort = list.filter(e=>e.shortfall>0).length;
-                return (
-                <div key={pk} style={{marginBottom:8}}>
-                  <div onClick={()=>setEnqPeriodOpen(o=>({...o,[pk]:!o[pk]}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"10px 14px"}}>
-                    <span style={{fontWeight:700,fontSize:13,color:S.cyan}}>📁 Period {pk} <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({list.length} {list.length>1?"rounds":"round"}{pShort>0?" · "+fmt(pOwed>0?pOwed:list.filter(e=>e.shortfall>0).reduce((a,e)=>a+e.shortfall,0))+" short":""})</span></span>
-                    <span style={{color:S.muted}}>{pOpen?"▾":"▸"}</span>
-                  </div>
-                  {pOpen && (
-                    <div style={{marginTop:8,paddingLeft:8}}>
-                      {list.map(e=>{
-                        const correct = e.status==="correct";
-                        return (
-                        <div key={e.id} style={{background:S.card,border:"1px solid "+(e.status==="resolved"||correct?S.green+"55":S.border),borderRadius:8,padding:"12px 14px",marginBottom:8}}>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                            <span style={{fontWeight:700,fontSize:13,color:S.cyan}}>Round {e.round||"—"}</span>
-                            <div onClick={()=>removeEnq(e.id)} style={{background:S.red+"20",color:S.red,padding:"3px 9px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
-                          </div>
-                          {e.invoiceNo && <div style={{fontSize:11,color:S.muted,marginBottom:6,fontFamily:"monospace"}}>Invoice {e.invoiceNo}</div>}
-                          <div style={{display:"flex",gap:14,fontSize:12,color:S.muted,marginBottom:10,flexWrap:"wrap"}}>
-                            <span>Should be <b style={{color:S.text}}>{fmt(e.shouldBe)}</b></span>
-                            <span>Paid <b style={{color:S.text}}>{fmt(e.paid)}</b></span>
-                            <span>Shortfall <b style={{color:e.shortfall>0?S.red:S.green}}>{e.shortfall>0?fmt(e.shortfall):"None ✓"}</b></span>
-                          </div>
-                          {correct ? (
-                            <div style={{textAlign:"center",padding:"7px 0",borderRadius:5,fontSize:12,fontWeight:700,background:S.green+"18",color:S.green,border:"1px solid "+S.green+"44"}}>✓ Pay correct · {e.date}</div>
-                          ) : (
-                            <>
-                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                                <span style={{fontSize:11,color:S.muted,whiteSpace:"nowrap"}}>Ref</span>
-                                <input type="text" value={e.ref} onChange={ev=>updateEnq(e.id,"ref",ev.target.value)} placeholder="Evri enquiry reference"
-                                  style={{flex:1,minWidth:0,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:12,borderRadius:5,padding:"6px 8px",outline:"none"}} />
-                              </div>
-                              <div onClick={()=>updateEnq(e.id,"status",e.status==="open"?"resolved":"open")}
-                                style={{textAlign:"center",padding:"7px 0",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:700,
-                                  background:e.status==="resolved"?S.green+"22":S.amber+"22",color:e.status==="resolved"?S.green:S.amber,border:"1px solid "+(e.status==="resolved"?S.green+"44":S.amber+"44")}}>
-                                {e.status==="resolved"?"✓ Resolved — tap to reopen":"● Open — tap when resolved"}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                );
-              })}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:11}}>
+              {openList.length>0 && <span style={{background:S.amber+"22",color:S.amber,borderRadius:5,padding:"3px 9px",fontWeight:700}}>● {openList.length} ongoing · owed {fmt(owed)}</span>}
+              {resolvedList.length>0 && <span style={{background:S.green+"22",color:S.green,borderRadius:5,padding:"3px 9px",fontWeight:700}}>✓ {resolvedList.length} resolved · recovered {fmt(recovered)}</span>}
             </div>
-          )}
+          </div>
+          {enqOpen && <div style={{marginTop:10}}>
+            {periodKeys.map(pk=>{
+              const list=groups[pk];
+              const pOpen=enqPeriodOpen[pk];
+              const pOwed=Math.round(list.filter(e=>e.status==="open").reduce((a,e)=>a+(e.shortfall||0),0)*100)/100;
+              return (
+              <div key={pk} style={{marginBottom:8}}>
+                <div onClick={()=>setEnqPeriodOpen(o=>({...o,[pk]:!o[pk]}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"10px 14px"}}>
+                  <span style={{fontWeight:700,fontSize:13,color:S.cyan}}>📁 Period {pk} <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({list.length} {list.length>1?"rounds":"round"} · {fmt(pOwed)} short)</span></span>
+                  <span style={{color:S.muted}}>{pOpen?"▾":"▸"}</span>
+                </div>
+                {pOpen && <div style={{marginTop:8,paddingLeft:8}}>
+                  {list.map(e=>(
+                    <div key={e.id} style={{background:S.card,border:"1px solid "+(e.status==="resolved"?S.green+"55":S.border),borderRadius:8,padding:"12px 14px",marginBottom:8}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                        <span style={{fontWeight:700,fontSize:13,color:S.cyan}}>Round {e.round||"—"}</span>
+                        <div onClick={()=>removeEnq(e.id)} style={{background:S.red+"20",color:S.red,padding:"3px 9px",borderRadius:4,cursor:"pointer",fontSize:11}}>×</div>
+                      </div>
+                      {e.invoiceNo && <div style={{fontSize:11,color:S.muted,marginBottom:6,fontFamily:"monospace"}}>Invoice {e.invoiceNo}</div>}
+                      <div style={{display:"flex",gap:14,fontSize:12,color:S.muted,marginBottom:10,flexWrap:"wrap"}}>
+                        <span>Should be <b style={{color:S.text}}>{fmt(e.shouldBe)}</b></span>
+                        <span>Paid <b style={{color:S.text}}>{fmt(e.paid)}</b></span>
+                        <span>Shortfall <b style={{color:S.red}}>{fmt(e.shortfall)}</b></span>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                        <span style={{fontSize:11,color:S.muted,whiteSpace:"nowrap"}}>Ref</span>
+                        <input type="text" value={e.ref} onChange={ev=>updateEnq(e.id,"ref",ev.target.value)} placeholder="Evri enquiry reference"
+                          style={{flex:1,minWidth:0,background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:12,borderRadius:5,padding:"6px 8px",outline:"none"}} />
+                      </div>
+                      <div onClick={()=>updateEnq(e.id,"status",e.status==="open"?"resolved":"open")}
+                        style={{textAlign:"center",padding:"7px 0",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:700,
+                          background:e.status==="resolved"?S.green+"22":S.amber+"22",color:e.status==="resolved"?S.green:S.amber,border:"1px solid "+(e.status==="resolved"?S.green+"44":S.amber+"44")}}>
+                        {e.status==="resolved"?"✓ Resolved — tap to reopen":"● Open — tap when resolved"}
+                      </div>
+                    </div>
+                  ))}
+                </div>}
+              </div>
+              );
+            })}
+          </div>}
         </div>
         );
       })()}
@@ -1313,9 +1373,9 @@ Successful collections: 2`}</div>
             </div>
 
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,color:S.muted,marginBottom:4}}>Invoice number <span style={{color:S.muted}}>(optional)</span></div>
-              <input type="text" inputMode="numeric" value={cr.invoiceNo||""} onChange={e=>updateClaim(i,"invoiceNo",e.target.value)} placeholder="e.g. 158301000040"
-                style={{width:"100%",background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none"}} />
+              <div style={{fontSize:11,color:S.muted,marginBottom:4}}>Invoice number *</div>
+              <input type="text" inputMode="numeric" value={cr.invoiceNo||""} onChange={e=>updateClaim(i,"invoiceNo",e.target.value)} placeholder="e.g. 123456000010"
+                style={{width:"100%",background:S.bg,border:"1px solid "+((cr.invoiceNo||"").trim()?S.border:S.amber+"99"),color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:5,padding:"6px 8px",outline:"none"}} />
             </div>
 
             <div style={{fontSize:11,color:S.muted,marginBottom:8,fontWeight:600}}>Parcel counts from invoice:</div>
