@@ -335,6 +335,8 @@ function App() {
   const [enqPeriodOpen, setEnqPeriodOpen] = useState({});
   const [refPopup, setRefPopup] = useState(null); // {id} when showing ref popup
   const [refInput, setRefInput] = useState("");
+  const [histOpen, setHistOpen] = useState(false);
+  const [histPeriodOpen, setHistPeriodOpen] = useState({});
   const saveEnquiries = (list) => { setEnquiries(list); try { localStorage.setItem("delivery_enquiries", JSON.stringify(list)); } catch {} };
 
   function initClaim() {
@@ -1237,20 +1239,18 @@ Successful collections: 2`}</div>
         const groups = {};
         hist.forEach(e=>{ const k=e.period||"—"; (groups[k]=groups[k]||[]).push(e); });
         const periodKeys = Object.keys(groups).sort((a,b)=>(parseInt(b)||0)-(parseInt(a)||0));
-        const [hOpen, setHOpen] = React.useState(false);
-        const [hPeriodOpen, setHPeriodOpen] = React.useState({});
         return (
         <div style={{marginBottom:10}} data-enqtop>
-          <div onClick={()=>setHOpen(o=>!o)} style={{cursor:"pointer",background:S.panel,border:"1px solid "+S.border,borderRadius:8,padding:"11px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div onClick={()=>setHistOpen(o=>!o)} style={{cursor:"pointer",background:S.panel,border:"1px solid "+S.border,borderRadius:8,padding:"11px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <span style={{fontWeight:700,fontSize:13,color:S.text}}>🗂 Invoice Data <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({hist.length} saved)</span></span>
-            <span style={{color:S.muted}}>{hOpen?"▾":"▸"}</span>
+            <span style={{color:S.muted}}>{histOpen?"▾":"▸"}</span>
           </div>
-          {hOpen && <div style={{marginTop:8}}>
+          {histOpen && <div style={{marginTop:8}}>
             {periodKeys.map(pk=>{
               const list=groups[pk];
-              const pOpen=hPeriodOpen[pk];
+              const pOpen=histPeriodOpen[pk];
               return (<div key={pk} style={{marginBottom:6}}>
-                <div onClick={()=>setHPeriodOpen(o=>({...o,[pk]:!o[pk]}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"9px 14px"}}>
+                <div onClick={()=>setHistPeriodOpen(o=>({...o,[pk]:!o[pk]}))} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",background:S.card,border:"1px solid "+S.border,borderRadius:8,padding:"9px 14px"}}>
                   <span style={{fontWeight:700,fontSize:13,color:S.cyan}}>P{pk} <span style={{color:S.muted,fontWeight:400,fontSize:11}}>({list.length} {list.length>1?"rounds":"round"})</span></span>
                   <span style={{color:S.muted}}>{pOpen?"▾":"▸"}</span>
                 </div>
