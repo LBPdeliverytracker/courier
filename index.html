@@ -338,6 +338,12 @@ function App() {
   const [histOpen, setHistOpen] = useState(false);
   const [histPeriodOpen, setHistPeriodOpen] = useState({});
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const WHATS_NEW_VER = "wn1"; // bump this when updates change
+  const [whatsNewSeen, setWhatsNewSeen] = useState(() => { try { return localStorage.getItem("dt_whatsnew")===WHATS_NEW_VER; } catch { return false; } });
+  const openWhatsNew = () => {
+    setWhatsNewOpen(o=>!o);
+    if(!whatsNewSeen){ setWhatsNewSeen(true); try { localStorage.setItem("dt_whatsnew", WHATS_NEW_VER); } catch {} }
+  };
   const saveEnquiries = (list) => { setEnquiries(list); try { localStorage.setItem("delivery_enquiries", JSON.stringify(list)); } catch {} };
 
   function initClaim() {
@@ -347,6 +353,7 @@ function App() {
     setClaimRounds([{
       round: knownRounds.length===1 ? knownRounds[0] : "",
       period: "",
+      invoiceNo: "",
       counts: {...blank},
       paidAmount: "",
     }]);
@@ -387,8 +394,15 @@ function App() {
   // system back button then steps back through views instead of closing the tab.
   const viewStack = React.useRef(["home"]);
   const skipPush = React.useRef(false);
+  const refPopupRef = React.useRef(false);
   useEffect(() => {
     const onPop = () => {
+      // if the ref popup is open, back button closes it instead of leaving the page
+      if (refPopupRef.current) {
+        setRefPopup(null);
+        try { window.history.pushState({ d: viewStack.current.length }, ""); } catch {}
+        return;
+      }
       const stack = viewStack.current;
       if (stack.length > 1) {
         stack.pop();
@@ -403,6 +417,7 @@ function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+  useEffect(() => { refPopupRef.current = !!refPopup; }, [refPopup]);
 
   useEffect(() => {
     const stack = viewStack.current;
@@ -939,8 +954,8 @@ Successful collections: 2`}</div>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <img alt="LBP" src={LOGO} style={{width:30,height:30,borderRadius:6}} />
         <span style={{fontWeight:800,fontSize:18,letterSpacing:0.3}}>LBP Delivery Tracker</span>
-        <div onClick={()=>setWhatsNewOpen(o=>!o)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
-          <span style={{width:8,height:8,borderRadius:"50%",background:"#e05555",display:"inline-block"}}></span>
+        <div onClick={openWhatsNew} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:whatsNewSeen?"#5a6a7a":"#e05555",display:"inline-block"}}></span>
           <span style={{fontSize:12,color:S.muted,fontWeight:600}}>New</span>
         </div>
       </div>
@@ -1386,7 +1401,7 @@ Successful collections: 2`}</div>
       {claimRounds.map((cr,i)=>{
         const rn = (cr.round||"").trim();
         const hasRoundRate = knownRounds.includes(rn);
-        const canCalc = rn && hasRoundRate && (cr.period||"").trim() && parseFloat(cr.paidAmount)>=0;
+        const canCalc = rn && hasRoundRate && (cr.period||"").trim() && (cr.invoiceNo||"").trim() && parseFloat(cr.paidAmount)>=0;
         let result = null;
         if (canCalc) result = buildClaimText(cr);
         const copied = claimCopied[i];
@@ -1460,7 +1475,11 @@ Successful collections: 2`}</div>
                   </>
                 )}
                 {result.shortfall<=0 && result.calc>0 && (
-                  <div style={{background:S.green+"18",border:"1px solid "+S.green+"44",borderRadius:6,padding:"10px",fontSize:12,color:S.green,textAlign:"center",marginBottom:8}}>✓ Pay looks correct — no shortfall found.</div>
+                  result.shortfall < -0.01 ? (
+                    <div style={{background:S.amber+"18",border:"1px solid "+S.amber+"55",borderRadius:6,padding:"10px",fontSize:12,color:S.amber,textAlign:"center",marginBottom:8}}>⚠ Paid is £{Math.abs(result.shortfall).toFixed(2)} higher than expected — double-check your numbers.</div>
+                  ) : (
+                    <div style={{background:S.green+"18",border:"1px solid "+S.green+"44",borderRadius:6,padding:"10px",fontSize:12,color:S.green,textAlign:"center",marginBottom:8}}>✓ Pay looks correct — no shortfall found.</div>
+                  )
                 )}
                 <div onClick={()=>saveEnquiry(cr,result)}
                   style={{background:S.panel,border:"1px solid "+S.cyan+"66",color:S.cyan,padding:"9px 0",borderRadius:6,cursor:"pointer",fontWeight:600,fontSize:12.5,textAlign:"center"}}>
