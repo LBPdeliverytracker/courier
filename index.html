@@ -337,6 +337,7 @@ function App() {
   const [refInput, setRefInput] = useState("");
   const [histOpen, setHistOpen] = useState(false);
   const [histPeriodOpen, setHistPeriodOpen] = useState({});
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const saveEnquiries = (list) => { setEnquiries(list); try { localStorage.setItem("delivery_enquiries", JSON.stringify(list)); } catch {} };
 
   function initClaim() {
@@ -934,9 +935,27 @@ Successful collections: 2`}</div>
 
   // HOME
   if (view==="home") return wrap(<>
-    <div style={{position:"sticky",top:0,zIndex:50,background:S.bg,display:"flex",alignItems:"center",gap:10,paddingTop:6,paddingBottom:12,marginBottom:14,borderBottom:"1px solid "+S.border}}>
-      <img alt="LBP" src={LOGO} style={{width:30,height:30,borderRadius:6}} />
-      <span style={{fontWeight:800,fontSize:18,letterSpacing:0.3}}>LBP Delivery Tracker</span>
+    <div style={{position:"sticky",top:0,zIndex:50,background:S.bg,paddingTop:6,paddingBottom:12,marginBottom:14,borderBottom:"1px solid "+S.border}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <img alt="LBP" src={LOGO} style={{width:30,height:30,borderRadius:6}} />
+        <span style={{fontWeight:800,fontSize:18,letterSpacing:0.3}}>LBP Delivery Tracker</span>
+        <div onClick={()=>setWhatsNewOpen(o=>!o)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:"#e05555",display:"inline-block"}}></span>
+          <span style={{fontSize:12,color:S.muted,fontWeight:600}}>New</span>
+        </div>
+      </div>
+      {whatsNewOpen && (
+        <div style={{marginTop:10,background:S.card,border:"1px solid "+S.amber+"44",borderRadius:8,padding:"12px 14px",fontSize:12,lineHeight:1.7}}>
+          <div style={{fontWeight:700,color:S.amber,marginBottom:8,fontSize:13}}>Recent updates</div>
+          <div style={{color:S.text,marginBottom:6}}>📂 <b>Invoice Data</b> — every invoice you check is now saved with the full parcel breakdown</div>
+          <div style={{color:S.text,marginBottom:6}}>📊 <b>Claims Record</b> — track shortfalls, log your Evri reference number, and see what's pending vs resolved</div>
+          <div style={{color:S.text,marginBottom:6}}>📄 Claim text now includes your invoice number automatically</div>
+          <div style={{color:S.text,marginBottom:6}}>☀️ <b>Sunday workers</b> — Period screen shows your enhancement figure; day breakdown shows weekday rate vs enhancement</div>
+          <div style={{color:S.text,marginBottom:6}}>✏️ <b>Edit day</b> — tap the edit button on any saved day to fix a mistake</div>
+          <div style={{color:S.text,marginBottom:10}}>➕ <b>Top up</b> — add RTD pay or any one-off bonus when saving a day</div>
+          <div onClick={()=>setWhatsNewOpen(false)} style={{textAlign:"center",color:S.muted,fontSize:11,cursor:"pointer",borderTop:"1px solid "+S.border,paddingTop:8}}>Close ▲</div>
+        </div>
+      )}
     </div>
     {(() => {
       const noRounds = Object.keys(rateConfig.rounds||{}).length===0;
