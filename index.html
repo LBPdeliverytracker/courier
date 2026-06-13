@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="LBP Tracker">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="logo-192.png">
-<link rel="manifest" href='data:application/manifest+json,{"name":"LBP Delivery Tracker","short_name":"LBP Tracker","start_url":".","display":"standalone","background_color":"%230C1929","theme_color":"%230C1929","icons":[{"src":"logo-192.png","sizes":"192x192","type":"image/png"},{"src":"logo.png","sizes":"512x512","type":"image/png"}]}'>
+<link rel="manifest" href='data:application/manifest+json,{"name":"LBP Delivery Tracker","short_name":"LBP Tracker","start_url":".","display":"standalone","background_color":"%230C1929","theme_color":"%230C1929","icons":[{"src":"logo-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"logo.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"logo-maskable-192.png","sizes":"192x192","type":"image/png","purpose":"maskable"},{"src":"logo-maskable.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}'>
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-PJLY9E53YE"></script>
 <script>
@@ -30,6 +30,7 @@ textarea { background: #1a1e2e; border: 1px solid #252a3d; color: #f1f3f9; font-
 textarea:focus { border-color: #3b82f6; }
 input[type=text] { background: #1a1e2e; border: 1px solid #252a3d; color: #f1f3f9; font-family: monospace; font-size: 12px; border-radius: 5px; padding: 7px 10px; outline: none; width: 100%; }
 input[type=text]:focus { border-color: #3b82f6; }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 </style>
 </head>
 <body>
@@ -350,6 +351,20 @@ function App() {
   const [dayTopUpLabel, setDayTopUpLabel] = useState("");
   const [showTopUp, setShowTopUp] = useState(false);
   const [periodName, setPeriodName] = useState("");
+  const createPeriodNow = () => {
+    const name = periodName.trim();
+    if (!name) return;
+    const m = name.match(/Period (\d+)/);
+    const periodNum = m ? m[1] : null;
+    const evri = periodNum && EVRI_CALENDAR[periodNum] ? EVRI_CALENDAR[periodNum] : null;
+    const period = { name, days:[], createdAt:Date.now() };
+    if (periodNum) period.periodNum = periodNum;
+    if (evri) period.evri = evri;
+    persist({...data, periods:[...data.periods, period]});
+    showToast("Created");
+    setPeriodName("");
+    setView("home");
+  };
   const [rateConfig, setRateConfig] = useState(() => loadRates());
   const [otherKey, setOtherKey] = useState(0);
   const [sundayOpen, setSundayOpen] = useState({});
@@ -374,7 +389,7 @@ function App() {
   const [histOpen, setHistOpen] = useState(false);
   const [histPeriodOpen, setHistPeriodOpen] = useState({});
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
-  const WHATS_NEW_VER = "wn1"; // bump this when updates change
+  const WHATS_NEW_VER = "wn2"; // bump this when updates change
   const [whatsNewSeen, setWhatsNewSeen] = useState(() => { try { return localStorage.getItem("dt_whatsnew")===WHATS_NEW_VER; } catch { return false; } });
   const openWhatsNew = () => {
     setWhatsNewOpen(o=>!o);
@@ -998,12 +1013,10 @@ Successful collections: 2`}</div>
       {whatsNewOpen && (
         <div style={{marginTop:10,background:S.card,border:"1px solid "+S.amber+"44",borderRadius:8,padding:"12px 14px",fontSize:12,lineHeight:1.7}}>
           <div style={{fontWeight:700,color:S.amber,marginBottom:8,fontSize:13}}>Recent updates</div>
-          <div style={{color:S.text,marginBottom:6}}>📂 <b>Invoice Data</b> — every invoice you check is now saved with the full parcel breakdown</div>
-          <div style={{color:S.text,marginBottom:6}}>📊 <b>Claims Record</b> — track shortfalls, log your Evri reference number, and see what's pending vs resolved</div>
-          <div style={{color:S.text,marginBottom:6}}>📄 Claim text now includes your invoice number automatically</div>
-          <div style={{color:S.text,marginBottom:6}}>☀️ <b>Sunday workers</b> — Period screen shows your enhancement figure; day breakdown shows weekday rate vs enhancement</div>
-          <div style={{color:S.text,marginBottom:6}}>✏️ <b>Edit day</b> — tap the edit button on any saved day to fix a mistake</div>
-          <div style={{color:S.text,marginBottom:10}}>➕ <b>Top up</b> — add RTD pay or any one-off bonus when saving a day</div>
+          <div style={{color:S.text,marginBottom:6}}>📲 <b>Add to home screen</b> — install LBP Tracker like a real app (browser menu → Add to Home screen)</div>
+          <div style={{color:S.text,marginBottom:6}}>📅 <b>Pick your period</b> — when adding a period, just tap P1–P12 and the EVRi dates fill in for you</div>
+          <div style={{color:S.text,marginBottom:6}}>⏰ <b>Deadline reminders</b> — the home screen now flags upcoming invoice, payday and period-end dates</div>
+          <div style={{color:S.text,marginBottom:10}}>✨ Smoother pop-ups that slide up from the bottom</div>
           <div onClick={()=>setWhatsNewOpen(false)} style={{textAlign:"center",color:S.muted,fontSize:11,cursor:"pointer",borderTop:"1px solid "+S.border,paddingTop:8}}>Close ▲</div>
         </div>
       )}
@@ -1082,11 +1095,37 @@ Successful collections: 2`}</div>
   </>);
   if (view==="add_period") return wrap(<>
     {topBar("NEW PERIOD", ()=>setView("home"))}
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div>
+        <div style={{fontSize:12,color:S.muted,marginBottom:8}}>Pick your EVRi period (auto-fills the dates) — or just type a name below.</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+          {Object.keys(EVRI_CALENDAR).sort((a,b)=>parseInt(a)-parseInt(b)).map(pn=>{
+            const sel = periodName==="Period "+pn;
+            return (
+              <div key={pn} onClick={()=>setPeriodName("Period "+pn)}
+                style={{textAlign:"center",padding:"12px 0",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,
+                  background:sel?"#97D3CD":S.card, color:sel?"#0C2C47":S.text, border:"1px solid "+(sel?"#97D3CD":S.border)}}>
+                P{pn}
+              </div>
+            );
+          })}
+        </div>
+        {(() => {
+          const m = periodName.match(/Period (\d+)/);
+          const cal = m && EVRI_CALENDAR[m[1]];
+          if (!cal) return null;
+          const fmtD = iso => { const d=new Date(iso+"T00:00:00"); return d.toLocaleDateString("en-GB",{day:"numeric",month:"short"}); };
+          return (
+            <div style={{marginTop:10,background:S.bg,border:"1px solid "+S.border,borderRadius:8,padding:"10px 12px",fontSize:11.5,color:S.muted,lineHeight:1.7}}>
+              📄 Invoice <b style={{color:S.text}}>{fmtD(cal.invoice)}</b> · 💷 Payday <b style={{color:S.text}}>{fmtD(cal.pay)}</b> · 📅 Ends <b style={{color:S.text}}>{fmtD(cal.end)}</b>
+            </div>
+          );
+        })()}
+      </div>
       <input type="text" value={periodName} onChange={e=>setPeriodName(e.target.value)} placeholder="e.g. Jun W1 / Period 12"
         style={{background:S.card,border:"1px solid "+S.border,color:S.text,borderRadius:8,padding:"13px 14px",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}
-        onKeyDown={e=>{if(e.key==="Enter"&&periodName.trim()){persist({...data,periods:[...data.periods,{name:periodName.trim(),days:[],createdAt:Date.now()}]});showToast("Created");setPeriodName("");setView("home");}}} />
-      <Btn onClick={()=>{if(!periodName.trim())return;persist({...data,periods:[...data.periods,{name:periodName.trim(),days:[],createdAt:Date.now()}]});showToast("Created");setPeriodName("");setView("home");}}>CREATE</Btn>
+        onKeyDown={e=>{if(e.key==="Enter"&&periodName.trim()){createPeriodNow();}}} />
+      <Btn onClick={()=>{if(periodName.trim())createPeriodNow();}}>CREATE</Btn>
     </div>
   </>);
 
@@ -1290,26 +1329,33 @@ Successful collections: 2`}</div>
         <div style={{color:S.muted,marginTop:4}}>Fill in one card per round. When a shortfall is found, copy the message and send it through the official channel.</div>
       </div>
 
-      {/* REF POPUP */}
+      {/* REF SHEET (bottom sheet) */}
       {refPopup && (
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 20px"}}>
-          <div style={{background:S.card,border:"1px solid "+S.border,borderRadius:12,padding:"20px",width:"100%",maxWidth:380}}>
-            <div style={{fontWeight:700,fontSize:14,color:S.cyan,marginBottom:6}}>Saved ✓</div>
+        <div onClick={()=>{
+            if(refInput.trim()) updateEnq(refPopup.id,"ref",refInput.trim());
+            setRefPopup(null); setEnqOpen(true);
+            setTimeout(()=>{ try{ document.querySelector('[data-enqtop]').scrollIntoView({behavior:"smooth"}); }catch{} },100);
+          }}
+          style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{background:S.card,borderTop:"1px solid "+S.border,borderTopLeftRadius:18,borderTopRightRadius:18,padding:"10px 20px calc(24px + env(safe-area-inset-bottom))",width:"100%",maxWidth:520,boxShadow:"0 -8px 30px rgba(0,0,0,0.3)",animation:"sheetUp 0.25s ease"}}>
+            <div style={{width:38,height:4,borderRadius:2,background:S.border,margin:"0 auto 16px"}}></div>
+            <div style={{fontWeight:700,fontSize:15,color:S.cyan,marginBottom:6}}>Saved ✓</div>
             {refPopup.hasClaim
-              ? <div style={{fontSize:12,color:S.muted,marginBottom:14,lineHeight:1.5}}>If you've already sent the claim to Evri, enter the reference number they gave you — or leave blank and add it later.</div>
-              : <div style={{fontSize:12,color:S.muted,marginBottom:14,lineHeight:1.5}}>Invoice saved to history.</div>
+              ? <div style={{fontSize:12.5,color:S.muted,marginBottom:14,lineHeight:1.5}}>If you've already sent the claim to Evri, enter the reference number they gave you — or leave blank and add it later.</div>
+              : <div style={{fontSize:12.5,color:S.muted,marginBottom:14,lineHeight:1.5}}>Invoice saved to history.</div>
             }
             {refPopup.hasClaim && (
               <input type="text" value={refInput} onChange={e=>setRefInput(e.target.value)}
                 placeholder="Evri enquiry reference (optional)"
-                style={{width:"100%",background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:13,borderRadius:6,padding:"8px 10px",outline:"none",marginBottom:12,boxSizing:"border-box"}} />
+                style={{width:"100%",background:S.bg,border:"1px solid "+S.border,color:S.text,fontFamily:"monospace",fontSize:14,borderRadius:8,padding:"11px 12px",outline:"none",marginBottom:14,boxSizing:"border-box"}} />
             )}
             <div onClick={()=>{
               if(refInput.trim()) updateEnq(refPopup.id,"ref",refInput.trim());
               setRefPopup(null);
               setEnqOpen(true);
               setTimeout(()=>{ try{ document.querySelector('[data-enqtop]').scrollIntoView({behavior:"smooth"}); }catch{} },100);
-            }} style={{background:S.cyan,color:"#000",padding:"10px 0",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13,textAlign:"center"}}>
+            }} style={{background:S.cyan,color:"#000",padding:"12px 0",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>
               Done — view record
             </div>
           </div>
