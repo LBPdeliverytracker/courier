@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LBP Delivery Tracker</title>
+<meta name="theme-color" content="#0C1929">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LBP Tracker">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="logo-192.png">
+<link rel="manifest" href='data:application/manifest+json,{"name":"LBP Delivery Tracker","short_name":"LBP Tracker","start_url":".","display":"standalone","background_color":"%230C1929","theme_color":"%230C1929","icons":[{"src":"logo-192.png","sizes":"192x192","type":"image/png"},{"src":"logo.png","sizes":"512x512","type":"image/png"}]}'>
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-PJLY9E53YE"></script>
 <script>
@@ -45,6 +52,21 @@ function applyTheme(light) { Object.assign(S, light ? LIGHT : DARK); }
 try { applyTheme(localStorage.getItem("dt_light")==="1"); } catch {}
 
 const PARCEL_TYPE_LIST = ["Small Packet","Packet","Standard","Postable","Heavy","Heavy/Large","Hanging Garment","Collection"];
+// EVRi 2026 Payment Calendar — [invoice available, payday, period end] as ISO dates
+const EVRI_CALENDAR = {
+  "1":  {invoice:"2026-03-05", pay:"2026-03-13", end:"2026-03-27"},
+  "2":  {invoice:"2026-04-02", pay:"2026-04-15", end:"2026-04-24"},
+  "3":  {invoice:"2026-05-07", pay:"2026-05-15", end:"2026-05-29"},
+  "4":  {invoice:"2026-06-04", pay:"2026-06-15", end:"2026-06-26"},
+  "5":  {invoice:"2026-07-02", pay:"2026-07-15", end:"2026-07-31"},
+  "6":  {invoice:"2026-08-06", pay:"2026-08-19", end:"2026-08-28"},
+  "7":  {invoice:"2026-09-03", pay:"2026-09-15", end:"2026-09-25"},
+  "8":  {invoice:"2026-10-01", pay:"2026-10-15", end:"2026-10-30"},
+  "9":  {invoice:"2026-11-05", pay:"2026-11-13", end:"2026-11-27"},
+  "10": {invoice:"2026-12-03", pay:"2026-12-15", end:"2027-01-01"},
+  "11": {invoice:"2026-01-08", pay:"2026-01-15", end:"2026-01-30"},
+  "12": {invoice:"2026-02-05", pay:"2026-02-13", end:"2026-02-27"}
+};
 const LOGO = "data:image/jpeg;base64,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";
 
 const SHOT_MANIFEST = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMjAiIGhlaWdodD0iNDIwIiB2aWV3Qm94PSIwIDAgMzIwIDQyMCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4KPHJlY3Qgd2lkdGg9IjMyMCIgaGVpZ2h0PSI0MjAiIGZpbGw9IiNmZmZmZmYiLz4KPHJlY3Qgd2lkdGg9IjMyMCIgaGVpZ2h0PSI0NCIgZmlsbD0iI2I4YzJkMCIvPgo8dGV4dCB4PSIxNjAiIHk9IjI4IiBmaWxsPSIjZWVmMWY1IiBmb250LXNpemU9IjE1IiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TUFOSUZFU1QgU1VNTUFSWTwvdGV4dD4KPHJlY3QgeD0iMTIiIHk9IjU2IiB3aWR0aD0iMjk2IiBoZWlnaHQ9IjIwMCIgcng9IjEwIiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9IiNlMmU2ZWUiLz4KPHRleHQgeD0iMTYwIiB5PSI4NCIgZmlsbD0iIzlhYTNiMiIgZm9udC1zaXplPSIxNSIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPjAyODcxOTUwMDAwMDA8L3RleHQ+CjxyZWN0IHg9IjE4IiB5PSI5OCIgd2lkdGg9IjI4NCIgaGVpZ2h0PSIxNDgiIHJ4PSI4IiBmaWxsPSIjZmZmN2Q2IiBzdHJva2U9IiNmNWI1MGEiIHN0cm9rZS13aWR0aD0iMiIvPgo8dGV4dCB4PSIxNjAiIHk9IjEyMCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlJvdW5kIE51bWJlcjogMTAwMjAwPC90ZXh0Pgo8dGV4dCB4PSIxNjAiIHk9IjEzOCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk1hbmlmZXN0IERhdGU6IDA2LzA2LzIwMjY8L3RleHQ+Cjx0ZXh0IHg9IjMwIiB5PSIxNjIiIGZpbGw9IiMxMTEiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtd2VpZ2h0PSJib2xkIj5Ub3RhbCBEZWxpdmVyaWVzOiA2MDwvdGV4dD4KPHRleHQgeD0iMzAiIHk9IjE4MCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMSIgZm9udC13ZWlnaHQ9ImJvbGQiPlRvdGFsIENvbGxlY3Rpb25zOiAyPC90ZXh0Pgo8dGV4dCB4PSIzMCIgeT0iMjA0IiBmaWxsPSIjMTExIiBmb250LXNpemU9IjExIiBmb250LXdlaWdodD0iYm9sZCI+U21hbGwgUGFja2V0OiAzNCAgIFBvc3RhYmxlOiAxMzwvdGV4dD4KPHRleHQgeD0iMzAiIHk9IjIyMiIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMSIgZm9udC13ZWlnaHQ9ImJvbGQiPlN0YW5kYXJkOiA2ICAgUGFja2V0OiA3PC90ZXh0Pgo8cmVjdCB4PSIxOCIgeT0iMjYyIiB3aWR0aD0iMjg0IiBoZWlnaHQ9IjI0IiByeD0iNCIgZmlsbD0iI2Y1YjUwYSIvPgo8dGV4dCB4PSIxNjAiIHk9IjI3OCIgZmlsbD0iIzExMSIgZm9udC1zaXplPSIxMiIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPiYjMTEwMTQ7IENPUFkgVEhJUzwvdGV4dD4KPHJlY3QgeD0iMjAiIHk9IjMwMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzOCIgcng9IjE5IiBmaWxsPSIjZjNmNGY2IiBzdHJva2U9IiNkNmRiZTMiLz4KPHRleHQgeD0iMTYwIiB5PSIzMjQiIGZpbGw9IiNhZWI2YzIiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlJlamVjdDwvdGV4dD4KPHJlY3QgeD0iMjAiIHk9IjM1MCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIzOCIgcng9IjE5IiBmaWxsPSIjZGZlM2VhIi8+Cjx0ZXh0IHg9IjE2MCIgeT0iMzc0IiBmaWxsPSIjYWViNmMyIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Db250aW51ZTwvdGV4dD4KPC9zdmc+";
@@ -164,6 +186,20 @@ function parseText(rawText) {
 const fmt = v => "£" + Number(v||0).toFixed(2);
 const pct = (a,b) => b > 0 ? ((a/b)*100).toFixed(1)+"%" : "—";
 const dateKey = (s) => { const m=(s||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? parseInt(m[3])*10000+parseInt(m[2])*100+parseInt(m[1]) : 0; };
+// Find EVRi deadlines within the next `window` days (and today)
+function upcomingEvriEvents(windowDays) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const labels = { invoice:"📄 Invoice available", pay:"💷 Payday", end:"📅 Period ends" };
+  const out = [];
+  Object.entries(EVRI_CALENDAR).forEach(([p,dates]) => {
+    Object.entries(dates).forEach(([kind,iso]) => {
+      const d = new Date(iso+"T00:00:00"); d.setHours(0,0,0,0);
+      const diff = Math.round((d-today)/86400000);
+      if (diff>=0 && diff<=windowDays) out.push({ period:p, kind, iso, diff, label:labels[kind] });
+    });
+  });
+  return out.sort((a,b)=>a.diff-b.diff);
+}
 // Live recompute a day's total from stored parcels + current rates
 function dayAmount(d, rateConfig) {
   let t = 0;
@@ -972,6 +1008,19 @@ Successful collections: 2`}</div>
         </div>
       )}
     </div>
+    {(() => {
+      const ev = upcomingEvriEvents(7);
+      if (!ev.length) return null;
+      const e = ev[0];
+      const when = e.diff===0 ? "today" : (e.diff===1 ? "tomorrow" : "in "+e.diff+" days");
+      const bg = e.diff===0 ? S.amber+"22" : S.card;
+      const bc = e.diff===0 ? S.amber+"66" : S.border;
+      return (
+        <div style={{background:bg,border:"1px solid "+bc,borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12.5,color:S.text}}>
+          {e.label} for <b>Period {e.period}</b> {when}
+        </div>
+      );
+    })()}
     {(() => {
       const noRounds = Object.keys(rateConfig.rounds||{}).length===0;
       return (<>
