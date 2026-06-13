@@ -389,6 +389,30 @@ function App() {
   const [histOpen, setHistOpen] = useState(false);
   const [histPeriodOpen, setHistPeriodOpen] = useState({});
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const [installEvt, setInstallEvt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showIosInstall, setShowIosInstall] = useState(false);
+  useEffect(() => {
+    const onBIP = (e) => { e.preventDefault(); setInstallEvt(e); };
+    window.addEventListener("beforeinstallprompt", onBIP);
+    try {
+      const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+      setIsStandalone(standalone);
+    } catch {}
+    window.addEventListener("appinstalled", () => { setInstallEvt(null); setIsStandalone(true); });
+    return () => window.removeEventListener("beforeinstallprompt", onBIP);
+  }, []);
+  const isIos = (() => { try { return /iphone|ipad|ipod/i.test(navigator.userAgent); } catch { return false; } })();
+  const doInstall = () => {
+    if (installEvt) {
+      installEvt.prompt();
+      installEvt.userChoice.finally(()=>setInstallEvt(null));
+    } else if (isIos) {
+      setShowIosInstall(true);
+    } else {
+      showToast("Use your browser menu → Add to Home screen");
+    }
+  };
   const WHATS_NEW_VER = "wn2"; // bump this when updates change
   const [whatsNewSeen, setWhatsNewSeen] = useState(() => { try { return localStorage.getItem("dt_whatsnew")===WHATS_NEW_VER; } catch { return false; } });
   const openWhatsNew = () => {
@@ -1077,6 +1101,11 @@ Successful collections: 2`}</div>
       })}
     </div>
     <div style={{marginTop:26,paddingTop:16,borderTop:"1px solid "+S.border}}>
+      {!isStandalone && (
+        <div onClick={doInstall} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:S.amber+"18",border:"1px solid "+S.amber+"55",color:S.amber,borderRadius:8,padding:"11px 14px",marginBottom:16,cursor:"pointer",fontWeight:700,fontSize:13}}>
+          📲 Install — add to home screen
+        </div>
+      )}
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,fontSize:12,lineHeight:1.4}}>
         <div style={{display:"flex",gap:8}}><span style={{color:S.amber}}>✓</span><span style={{color:S.text}}><b>Always free</b> — no subscriptions, ever</span></div>
         <div style={{display:"flex",gap:8}}><span style={{color:S.amber}}>✓</span><span style={{color:S.text}}><b>Private by design</b> — your data never leaves your phone</span></div>
@@ -1092,6 +1121,21 @@ Successful collections: 2`}</div>
         </div>
       </div>
     </div>
+    {showIosInstall && (
+      <div onClick={()=>setShowIosInstall(false)} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.55)",zIndex:999,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:S.card,borderTopLeftRadius:18,borderTopRightRadius:18,padding:"10px 20px calc(24px + env(safe-area-inset-bottom))",width:"100%",maxWidth:520,boxShadow:"0 -8px 30px rgba(0,0,0,0.3)",animation:"sheetUp 0.25s ease"}}>
+          <div style={{width:38,height:4,borderRadius:2,background:S.border,margin:"0 auto 16px"}}></div>
+          <div style={{fontWeight:700,fontSize:15,color:S.cyan,marginBottom:12}}>📲 Add to Home Screen</div>
+          <div style={{fontSize:13,color:S.text,lineHeight:1.7,marginBottom:14}}>
+            On iPhone, open this page in <b>Safari</b>, then:<br/>
+            1. Tap the <b>Share</b> button (□↑ at the bottom)<br/>
+            2. Scroll down and tap <b>Add to Home Screen</b><br/>
+            3. Tap <b>Add</b>
+          </div>
+          <div onClick={()=>setShowIosInstall(false)} style={{background:S.cyan,color:"#000",padding:"12px 0",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,textAlign:"center"}}>Got it</div>
+        </div>
+      </div>
+    )}
   </>);
   if (view==="add_period") return wrap(<>
     {topBar("NEW PERIOD", ()=>setView("home"))}
